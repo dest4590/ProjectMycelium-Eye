@@ -1,0 +1,63 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+a {
+    text-decoration: none;
+    color: hsla(160, 100%, 37%, 1);
+    transition: 300ms;
+    margin: 0;
+    padding: 0;
+}
+
+a:hover {
+    color: hsl(160, 70%, 58%);
+    text-decoration: underline;
+}
+
+input:focus {
+    outline: none;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+::selection {
+    background-color: rgba(123, 225, 65, 0.3);
+    color: #fff;
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 5px;
+    transition: background 0.3s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #7be141;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid #7be141;
+    outline-offset: 2px;
+}
+
+[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed !important;
+}
