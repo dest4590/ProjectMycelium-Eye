@@ -27,3 +27,8 @@ It transforms complex datasets into actionable visual intelligence, allowing for
 - **Frontend Framework:** `Vue.js 3` (Composition API) with `Vite` for optimized builds and reactive state management.
 - **Graph Engine:** `vis-network` for rendering large-scale, interactive relationship graphs.
 - **Communication Protocols:** `Axios` for RESTful API interactions and `@stomp/stompjs` for full-duplex `WebSocket` communication, ensuring low-latency data updates.
+
+
+
+https://github.com/user-attachments/assets/3a7f37b0-2979-4655-8351-d488d48959e6
+
