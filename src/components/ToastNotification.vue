@@ -63,7 +63,7 @@ defineExpose({ addToast, removeToast });
 <style scoped>
 .toast-container {
     position: fixed;
-    top: 20px;
+    bottom: 20px;
     right: 20px;
     z-index: 99999;
     display: flex;

@@ -76,6 +76,14 @@ class ApiService {
         const response = await this.client.patch<T>(url, data, config);
         return response.data;
     }
+
+    public async setUserScanned(username: string, scanned: boolean) {
+        return this.patch(`/user/${username}/scanned?scanned=${scanned}`);
+    }
+
+    public async setUserHidden(username: string, hidden: boolean) {
+        return this.patch(`/user/${username}/hidden?hidden=${hidden}`);
+    }
 }
 
 export const apiService = new ApiService();

@@ -2,6 +2,7 @@ export interface NodeDataRaw {
     username: string;
     nickname?: string;
     scanned: boolean;
+    isHidden?: boolean;
 }
 
 export interface EdgeDataRaw {
@@ -24,6 +25,7 @@ export interface VisNode {
     label: string;
     color: VisNodeColor;
     scanned: boolean;
+    isHidden?: boolean;
     size?: number;
     shadow?: boolean | { enabled?: boolean; color?: string; size?: number };
 }

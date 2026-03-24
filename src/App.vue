@@ -29,63 +29,13 @@
                 style="margin-bottom: 1rem; text-align: center"
                 >create a project to continue</span
             >
-            <div
-                class="project-selector"
-                :style="activeProject ? { borderBottom: '1px solid #444' } : {}"
-            >
-                <select
-                    v-model="activeProject"
-                    @mousedown="handleProjectSelectMousedown"
-                    ref="projectSelectRef"
-                    data-project-input
-                >
-                    <option v-for="p in projects" :key="p" :value="p">
-                        {{ p }}
-                    </option>
-                </select>
-                <Dropdown
-                    :visible="showProjectDropdown"
-                    :x="projectDropdownX"
-                    :y="projectDropdownY"
-                    :items="[
-                        {
-                            label: 'delete active project',
-                            value: 'delete',
-                            isDanger: true,
-                        },
-                    ]"
-                    @select="handleProjectDropdownSelect"
-                    @close="showProjectDropdown = false"
-                    :triggerRef="projectSelectRef"
-                />
-                <div class="new-project">
-                    <input
-                        v-model="newProjectName"
-                        @keyup.enter="createProject"
-                        placeholder="new project..."
-                        aria-label="New project name"
-                    />
-                    <div style="display: flex; gap: 6px; width: 40px">
-                        <button
-                            @click="createProject"
-                            class="button-active-feedback"
-                            aria-label="Create project"
-                            title="Create project"
-                        >
-                            +
-                        </button>
-                        <button
-                            v-if="newProjectName"
-                            @click="newProjectName = ''"
-                            class="button-active-feedback"
-                            aria-label="Clear"
-                            title="Clear"
-                        >
-                            ×
-                        </button>
-                    </div>
-                </div>
-            </div>
+
+            <ProjectSelector
+                :projects="projects"
+                v-model:activeProject="activeProject"
+                @create="createProject"
+                @delete="deleteProject"
+            />
 
             <div class="tabs" v-if="activeProject">
                 <button
@@ -114,346 +64,84 @@
                 </button>
             </div>
 
-            <div
+            <ScannerPanel
                 v-if="activeTab === 'scan' && activeProject"
-                class="panel-content"
-            >
-                <div class="controls">
-                    <SearchInput
-                        ref="startUserInputRef"
-                        v-model="startUser"
-                        placeholder="start user"
-                        :suggestions="startUserSuggestions"
-                        :show-suggestions="showStartUserSuggestions"
-                        @input="updateStartUserSuggestions"
-                        @focus="showStartUserSuggestions = true"
-                        @blur="showStartUserSuggestions = false"
-                        @selectSuggestion="selectStartUserSuggestion"
-                    />
-                    <SearchInput
-                        v-model.number="scanDepth"
-                        type="number"
-                        placeholder="depth"
-                        :suggestions="[]"
-                        :show-suggestions="false"
-                        :input-style="{ marginBottom: '10px' }"
-                    />
+                ref="scannerPanelRef"
+                v-model:startUser="startUser"
+                v-model:scanDepth="scanDepth"
+                :tasks="tasks"
+                :statusMap="statusMap"
+                :isScanningLimitReached="isScanningLimitReached"
+                :scanButtonLabel="scanButtonLabel"
+                :startUserSuggestions="startUserSuggestions"
+                @initiateScan="initiateScan"
+                @updateSuggestions="updateStartUserSuggestions"
+                @selectSuggestion="selectStartUserSuggestion"
+            />
 
-                    <button
-                        @mousedown="handleScanButtonMousedown"
-                        :disabled="isScanningLimitReached"
-                        ref="scanButtonRef"
-                        data-scan-button
-                        class="button-active-feedback"
-                        title="hold shift for more options"
-                    >
-                        {{ scanButtonLabel }}
-                    </button>
-
-                    <Dropdown
-                        :visible="showScanTypeDropdown"
-                        :x="scanTypeDropdownX"
-                        :y="scanTypeDropdownY"
-                        :items="[
-                            {
-                                label: 'scan followers',
-                                value: 'followers',
-                            },
-                            {
-                                label: 'scan following',
-                                value: 'following',
-                            },
-                            {
-                                label: 'force scan',
-                                value: 'force',
-                            },
-                        ]"
-                        @select="selectScanTypeFromDropdown"
-                        @close="showScanTypeDropdown = false"
-                        :triggerRef="scanButtonRef"
-                    />
-                </div>
-                <TaskDisplay :tasks="tasks" :statusMap="statusMap" />
-            </div>
-
-            <div
+            <AnalysisPanel
                 v-if="activeTab === 'analyze' && activeProject"
-                class="panel-content"
-            >
-                <div class="controls">
-                    <div class="controls-header">
-                        <span>node search</span>
-                        <button @click="resetSearch" class="link-button">
-                            reset
-                        </button>
-                    </div>
-                    <SearchInput
-                        ref="searchInputRef"
-                        v-model="searchQuery"
-                        placeholder="find user... ( / )"
-                        :suggestions="searchSuggestions"
-                        :show-suggestions="showSuggestions"
-                        @input="updateSearchSuggestions"
-                        @focus="showSuggestions = true"
-                        @blur="showSuggestions = false"
-                        @selectSuggestion="selectSearchSuggestion"
-                        @keyup.enter="searchNode"
-                        :input-style="{ marginBottom: '0' }"
-                    />
-                    <hr />
-                    <div class="controls-header">
-                        <span>shortest path</span>
-                        <button @click="resetPath" class="link-button">
-                            reset
-                        </button>
-                    </div>
-                    <SearchInput
-                        v-model="pathStart"
-                        placeholder="from user... (node click)"
-                        :suggestions="pathStartSuggestions"
-                        :show-suggestions="showPathStartSuggestions"
-                        @input="updatePathStartSuggestions"
-                        @focus="showPathStartSuggestions = true"
-                        @blur="showPathStartSuggestions = false"
-                        @selectSuggestion="selectPathStartSuggestion"
-                    />
-                    <SearchInput
-                        v-model="pathEnd"
-                        placeholder="to user... (shift+click)"
-                        :suggestions="pathEndSuggestions"
-                        :show-suggestions="showPathEndSuggestions"
-                        @input="updatePathEndSuggestions"
-                        @focus="showPathEndSuggestions = true"
-                        @blur="showPathEndSuggestions = false"
-                        @selectSuggestion="selectPathEndSuggestion"
-                    />
-                    <button
-                        @click="findPath"
-                        :disabled="!activeProject"
-                        class="button-active-feedback"
-                    >
-                        find path
-                    </button>
-                </div>
-            </div>
+                ref="analysisPanelRef"
+                v-model:searchQuery="searchQuery"
+                v-model:pathStart="pathStart"
+                v-model:pathEnd="pathEnd"
+                :searchSuggestions="searchSuggestions"
+                :pathStartSuggestions="pathStartSuggestions"
+                :pathEndSuggestions="pathEndSuggestions"
+                :activeProject="activeProject"
+                @updateSearchSuggestions="updateSearchSuggestions"
+                @updatePathStartSuggestions="updatePathStartSuggestions"
+                @updatePathEndSuggestions="updatePathEndSuggestions"
+                @selectSearchSuggestion="selectSearchSuggestion"
+                @selectPathStartSuggestion="selectPathStartSuggestion"
+                @selectPathEndSuggestion="selectPathEndSuggestion"
+                @searchNode="searchNode"
+                @findPath="findPath"
+                @resetSearch="resetSearch"
+                @resetPath="resetPath"
+            />
 
-            <div
+            <SettingsPanel
                 v-if="activeTab === 'settings' && activeProject"
-                class="panel-content"
-            >
-                <div class="controls">
-                    <div class="filter-control">
-                        <input
-                            type="checkbox"
-                            id="hideSingles"
-                            v-model="hideSingleConnections"
-                        />
-                        <label for="hideSingles">hide "hanging" nodes</label>
-                    </div>
-                    <div class="scan-max-control">
-                        <label for="maxFollowersLimit"
-                            >max followers per user</label
-                        >
-                        <input
-                            type="number"
-                            id="maxFollowersLimit"
-                            v-model="maxFollowersLimit"
-                            @change="
-                                maxFollowersLimit !== null &&
-                                setLimit('followers', maxFollowersLimit)
-                            "
-                        />
+                v-model:hideSingleConnections="hideSingleConnections"
+                v-model:maxFollowersLimit="maxFollowersLimit"
+                v-model:maxFollowingLimit="maxFollowingLimit"
+                :isScanning="isScanning"
+                :activeProject="activeProject"
+                @setLimit="setLimit"
+                @expandAllNodes="expandAllNodes"
+            />
 
-                        <label for="maxFollowingLimit"
-                            >max following per user</label
-                        >
-                        <input
-                            type="number"
-                            id="maxFollowingLimit"
-                            v-model="maxFollowingLimit"
-                            @change="
-                                maxFollowingLimit !== null &&
-                                setLimit('following', maxFollowingLimit)
-                            "
-                        />
-                    </div>
-                    <hr />
-                    <button
-                        @click="expandAllNodes"
-                        :disabled="isScanning || !activeProject"
-                        class="button-active-feedback"
-                        title="loads all data from database, may take time"
-                    >
-                        show full graph
-                        <span style="color: red">(!!! dangerous !!!)</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="stats" v-if="activeProject">
-                <div v-if="selectedNode" class="selected-info">
-                    selected:
-                    <a
-                        :href="'https://instagram.com/' + selectedNode"
-                        target="_blank"
-                        >{{ selectedNode }}</a
-                    >
-                </div>
-                <div>
-                    nodes (total): <span>{{ stats.nodes }}</span>
-                </div>
-                <div>
-                    edges (total): <span>{{ stats.edges }}</span>
-                </div>
-                <div>
-                    nodes (on graph): <span>{{ stats.nodesOnGraph }}</span>
-                </div>
-                <div>
-                    status: <span :class="wsStatus">{{ wsStatus }}</span>
-                </div>
-            </div>
+            <StatsPanel
+                v-if="activeProject"
+                :activeProject="activeProject"
+                :selectedNode="selectedNode"
+                :stats="stats"
+                :wsStatus="wsStatus"
+            />
             <LogConsole :logs="logs" />
         </div>
 
-        <div class="graph-panel" v-if="activeProject">
-            <FilterPanel
-                ref="filterPanelRef"
-                v-model="filterQuery"
-                @apply="applyFilter"
-                @reset="resetFilter"
-            />
-            <GraphControls
-                :physicsEnabled="physicsEnabled"
-                @zoom-in="zoomIn"
-                @zoom-out="zoomOut"
-                @fit="fitGraph"
-                @toggle-physics="togglePhysics"
-                @reset-view="resetGraphView"
-            />
-            <div class="watermark"><img src="@/assets/Eye_of_Ra.png" /></div>
-            <div ref="graphContainer" class="graph-container"></div>
-
-            <transition name="context-menu-anim">
-                <div
-                    v-if="contextMenu.visible"
-                    class="context-menu"
-                    :style="{
-                        top: contextMenu.y + 'px',
-                        left: contextMenu.x + 'px',
-                    }"
-                    @click.stop
-                    ref="contextMenuRef"
-                >
-                    <div
-                        class="context-menu-header"
-                        style="cursor: pointer"
-                        @click="executeContextMenuAction('copy')"
-                        title="copy username"
-                    >
-                        {{ contextMenu.nodeId }}
-                    </div>
-                    <div class="context-menu-separator"></div>
-                    <div class="context-menu-section">actions</div>
-                    <div
-                        class="context-menu-item"
-                        @click="executeContextMenuAction('expand')"
-                    >
-                        expand node
-                    </div>
-                    <div
-                        class="context-menu-item"
-                        @click="executeContextMenuAction('highlight')"
-                    >
-                        highlight neighbors
-                    </div>
-                    <div
-                        class="context-menu-item"
-                        @click="executeContextMenuAction('open')"
-                    >
-                        open in Instagram
-                    </div>
-                    <div class="context-menu-separator"></div>
-                    <div class="context-menu-section">pathfinding</div>
-                    <div
-                        class="context-menu-item"
-                        @click="executeContextMenuAction('setAsPathStart')"
-                    >
-                        set as start
-                    </div>
-                    <div
-                        class="context-menu-item"
-                        @click="executeContextMenuAction('setAsPathEnd')"
-                    >
-                        set as end
-                    </div>
-                    <div class="context-menu-separator"></div>
-                    <div
-                        class="context-menu-item"
-                        @click="executeContextMenuAction('markAsNotScanned')"
-                    >
-                        mark as unscanned
-                    </div>
-                    <div
-                        class="context-menu-item danger"
-                        @click="executeContextMenuAction('delete')"
-                    >
-                        delete node
-                    </div>
-
-                    <div
-                        class="context-menu-section"
-                        v-if="contextMenu.connectedNodes.length > 0"
-                    >
-                        connected nodes ({{
-                            contextMenu.connectedNodes.length
-                        }})
-                    </div>
-                    <div class="context-menu-list">
-                        <div
-                            v-for="node in contextMenu.connectedNodes"
-                            :key="node"
-                            class="context-menu-item-small"
-                            @click="focusOnNode(node)"
-                        >
-                            {{ node }}
-                        </div>
-                    </div>
-                </div>
-            </transition>
-
-            <transition name="context-menu-anim">
-                <div
-                    v-if="hoverTooltip.visible"
-                    class="hover-tooltip"
-                    :style="{
-                        top: hoverTooltip.y + 'px',
-                        left: hoverTooltip.x + 'px',
-                    }"
-                >
-                    <a
-                        :href="'https://instagram.com/' + hoverTooltip.nodeId"
-                        target="_blank"
-                        style="color: inherit; text-decoration: none"
-                    >
-                        <strong>{{ hoverTooltip.label }}</strong>
-                        <span
-                            :style="{
-                                color: hoverTooltip.isScanned
-                                    ? '#7BE141'
-                                    : '#F0A30A',
-                                marginLeft: '5px',
-                            }"
-                        >
-                            ({{
-                                hoverTooltip.isScanned
-                                    ? 'scanned'
-                                    : 'unscanned'
-                            }})
-                        </span>
-                    </a>
-                </div>
-            </transition>
-        </div>
+        <GraphPanel
+            v-if="activeProject"
+            ref="graphPanelRef"
+            v-model:filterQuery="filterQuery"
+            :physicsEnabled="physicsEnabled"
+            :contextMenu="contextMenu"
+            :hoverTooltip="hoverTooltip"
+            :isNodeHidden="
+                (nodeId) => nodesDataSet.get(nodeId)?.isHidden ?? false
+            "
+            @applyFilter="applyFilter"
+            @resetFilter="resetFilter"
+            @zoomIn="zoomIn"
+            @zoomOut="zoomOut"
+            @fitGraph="fitGraph"
+            @togglePhysics="togglePhysics"
+            @resetGraphView="resetGraphView"
+            @executeContextMenuAction="executeContextMenuAction"
+            @focusOnNode="focusOnNode"
+        />
     </div>
 
     <ToastNotification ref="toastRef" />
@@ -467,24 +155,43 @@ import {
     reactive,
     onUnmounted,
     markRaw,
+    shallowRef,
     computed,
     watch,
     nextTick,
+    defineAsyncComponent,
     type Ref,
 } from 'vue';
 import { Network, DataSet } from 'vis-network/standalone/esm/vis-network.js';
 import { Client } from '@stomp/stompjs';
 import type { Options } from 'vis-network';
-
 import EyeOfRa from '@/components/EyeOfRa.vue';
-import Dropdown from '@/components/Dropdown.vue';
-import SearchInput from '@/components/SearchInput.vue';
-import LogConsole from '@/components/LogConsole.vue';
-import TaskDisplay from '@/components/TaskDisplay.vue';
-import FilterPanel from '@/components/FilterPanel.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
-import KeyboardShortcutsModal from '@/components/KeyboardShortcutsModal.vue';
-import GraphControls from '@/components/GraphControls.vue';
+
+const LogConsole = defineAsyncComponent(
+    () => import('@/components/LogConsole.vue'),
+);
+const KeyboardShortcutsModal = defineAsyncComponent(
+    () => import('@/components/KeyboardShortcutsModal.vue'),
+);
+const ProjectSelector = defineAsyncComponent(
+    () => import('@/components/ProjectSelector.vue'),
+);
+const ScannerPanel = defineAsyncComponent(
+    () => import('@/components/ScannerPanel.vue'),
+);
+const AnalysisPanel = defineAsyncComponent(
+    () => import('@/components/AnalysisPanel.vue'),
+);
+const SettingsPanel = defineAsyncComponent(
+    () => import('@/components/SettingsPanel.vue'),
+);
+const StatsPanel = defineAsyncComponent(
+    () => import('@/components/StatsPanel.vue'),
+);
+const GraphPanel = defineAsyncComponent(
+    () => import('@/components/GraphPanel.vue'),
+);
 
 import { useLog } from '@/composables/useLog';
 import { useToast } from '@/composables/useToast';
@@ -504,13 +211,13 @@ import type {
 const { logs, addLog } = useLog();
 const toast = useToast();
 
-const nodesDataSet = new DataSet<VisNode, 'id'>();
-const edgesDataSet = new DataSet<VisEdge, 'id'>();
-const allNodesBackup = new DataSet<VisNode, 'id'>();
+const nodesDataSet = markRaw(new DataSet<VisNode, 'id'>());
+const edgesDataSet = markRaw(new DataSet<VisEdge, 'id'>());
+const allNodesBackup = markRaw(new DataSet<VisNode, 'id'>());
 
 const expandedNodes = ref<Set<string>>(new Set());
 const graphContainer = ref<HTMLElement | null>(null);
-const network = ref<Network | null>(null);
+const network = shallowRef<Network | null>(null);
 const physicsEnabled = ref<boolean>(false);
 
 const projects = ref<string[]>([]);
@@ -535,6 +242,7 @@ const statusMap: Record<string, StatusMapItem> = {
 };
 
 const isLoading = ref<boolean>(true);
+const graphInitInProgress = ref<boolean>(false);
 const isDraggingNode = ref<boolean>(false);
 const startUser = ref<string>('exampleuser');
 const scanDepth = ref<number>(0);
@@ -576,15 +284,9 @@ const showScanTypeDropdown = ref<boolean>(false);
 const scanTypeDropdownX = ref<number>(0);
 const scanTypeDropdownY = ref<number>(0);
 
-const showProjectDropdown = ref<boolean>(false);
-const projectDropdownX = ref<number>(0);
-const projectDropdownY = ref<number>(0);
-
-const projectSelectRef = ref<HTMLElement | null>(null);
-const scanButtonRef = ref<HTMLElement | null>(null);
-const startUserInputRef = ref<InstanceType<typeof SearchInput> | null>(null);
-const searchInputRef = ref<InstanceType<typeof SearchInput> | null>(null);
-const filterPanelRef = ref<InstanceType<typeof FilterPanel> | null>(null);
+const scannerPanelRef = ref<InstanceType<typeof ScannerPanel> | null>(null);
+const analysisPanelRef = ref<InstanceType<typeof AnalysisPanel> | null>(null);
+const graphPanelRef = ref<InstanceType<typeof GraphPanel> | null>(null);
 const toastRef = ref<InstanceType<typeof ToastNotification> | null>(null);
 const keyboardShortcutsModalRef = ref<InstanceType<
     typeof KeyboardShortcutsModal
@@ -602,7 +304,7 @@ const handleContextMenuClickOutside = (event: MouseEvent) => {
 
 watch(
     () => contextMenu.visible,
-    (newVal) => {
+    (newVal: boolean) => {
         if (newVal) {
             window.addEventListener('mousedown', handleContextMenuClickOutside);
         } else {
@@ -662,23 +364,25 @@ const resetAnalysisState = () => {
     resetHighlight();
 };
 
-watch(activeProject, (newProject, oldProject) => {
+watch(activeProject, (newProject: string | null, oldProject: string | null) => {
     if (newProject && newProject !== oldProject) {
         addLog(`> switching to project: "${newProject}"`);
         selectedNode.value = null;
         resetAnalysisState();
         filterQuery.value = '';
-        initGraph();
+        nextTick(() => {
+            initGraph();
+        });
         fetchLimits();
     }
 });
 
-watch(activeTab, (newTab) => {
+watch(activeTab, (newTab: string) => {
     nextTick(() => {
         if (newTab === 'scan') {
-            startUserInputRef.value?.focus();
+            scannerPanelRef.value?.focus();
         } else if (newTab === 'analyze') {
-            searchInputRef.value?.focus();
+            analysisPanelRef.value?.focus();
         }
     });
 });
@@ -745,7 +449,9 @@ async function deleteProject(): Promise<void> {
     try {
         const projectToDelete = activeProject.value;
         await apiService.delete(`/projects/${projectToDelete}`);
-        projects.value = projects.value.filter((p) => p !== projectToDelete);
+        projects.value = projects.value.filter(
+            (p: string) => p !== projectToDelete,
+        );
         if (projects.value.length > 0) {
             activeProject.value = projects.value[0];
         } else {
@@ -757,8 +463,6 @@ async function deleteProject(): Promise<void> {
         addLog(
             `<span class="log-error">error deleting project: ${error.message}</span>`,
         );
-    } finally {
-        showProjectDropdown.value = false;
     }
 }
 
@@ -804,6 +508,7 @@ function formatNode(n: NodeDataRaw): VisNode {
         label: n.nickname || n.username,
         color: n.scanned ? '#7BE141' : '#F0A30A',
         scanned: n.scanned,
+        isHidden: n.isHidden,
     };
 }
 
@@ -823,7 +528,7 @@ function updateFilteredNodes(): void {
 
     if (!hideSingleConnections.value) {
         const nodesToAdd = allNodesBackup.get({
-            filter: (node) => !nodesDataSet.get(node.id),
+            filter: (node: VisNode) => !nodesDataSet.get(node.id),
         });
         if (nodesToAdd.length > 0) {
             nodesDataSet.add(nodesToAdd);
@@ -840,7 +545,7 @@ function updateFilteredNodes(): void {
         });
 
         if (nodesToRemove.length > 0) {
-            nodesDataSet.remove(nodesToRemove.map((n) => n.id));
+            nodesDataSet.remove(nodesToRemove.map((n: VisNode) => n.id));
         }
     }
     stats.nodesOnGraph = nodesDataSet.length;
@@ -877,31 +582,41 @@ const stompClient = new Client({
                 nodesDataSet.update(nodeData);
                 allNodesBackup.update(nodeData);
             } else if (update.type === 'NEW_EDGE') {
-                if (!nodesDataSet.get(update.source)) {
-                    const nodeData = formatNode({
-                        username: update.source,
-                        scanned: false,
-                    });
-                    nodesDataSet.add(nodeData);
-                    allNodesBackup.add(nodeData);
+                const srcNode = formatNode({
+                    username: update.source,
+                    scanned: false,
+                });
+                const tgtNode = formatNode({
+                    username: update.target,
+                    scanned: false,
+                });
+                try {
+                    nodesDataSet.update(srcNode);
+                    allNodesBackup.update(srcNode);
+                } catch (e) {
+                    try {
+                        nodesDataSet.add(srcNode);
+                    } catch (ee) {}
                 }
-                if (!nodesDataSet.get(update.target)) {
-                    const nodeData = formatNode({
-                        username: update.target,
-                        scanned: false,
-                    });
-                    nodesDataSet.add(nodeData);
-                    allNodesBackup.add(nodeData);
+                try {
+                    nodesDataSet.update(tgtNode);
+                    allNodesBackup.update(tgtNode);
+                } catch (e) {
+                    try {
+                        nodesDataSet.add(tgtNode);
+                    } catch (ee) {}
                 }
-                const edgeId = `${update.source}-${update.target}`;
-                if (!edgesDataSet.get(edgeId)) {
-                    edgesDataSet.add(
-                        formatEdge({
-                            source: update.source,
-                            target: update.target,
-                            active: true,
-                        }),
-                    );
+                const edgeObj = formatEdge({
+                    source: update.source,
+                    target: update.target,
+                    active: true,
+                });
+                try {
+                    edgesDataSet.update(edgeObj);
+                } catch (e) {
+                    try {
+                        edgesDataSet.add(edgeObj);
+                    } catch (ee) {}
                 }
             } else if (update.type === 'NODE_DELETION') {
                 nodesDataSet.remove(update.username);
@@ -997,26 +712,12 @@ function selectScanTypeFromDropdown(type: string): void {
     initiateScan(type as 'followers' | 'following' | 'force' | 'default');
 }
 
-function handleProjectSelectMousedown(event: MouseEvent): void {
-    if (event.shiftKey) {
-        event.preventDefault();
-        event.stopPropagation();
-        showProjectDropdown.value = true;
-        const selectRect = (
-            event.currentTarget as HTMLElement
-        ).getBoundingClientRect();
-        projectDropdownX.value = selectRect.left;
-        projectDropdownY.value = selectRect.bottom + 5;
-    } else {
-        showProjectDropdown.value = false;
+function setGraphContainerRef() {
+    if (graphPanelRef.value) {
+        const exposed: any = (graphPanelRef.value as any).graphContainer;
+        const el: HTMLElement | null = exposed?.value ?? exposed ?? null;
+        graphContainer.value = el;
     }
-}
-
-function handleProjectDropdownSelect(action: string): void {
-    if (action === 'delete') {
-        deleteProject();
-    }
-    showProjectDropdown.value = false;
 }
 
 async function initGraph(): Promise<void> {
@@ -1030,12 +731,18 @@ async function initGraph(): Promise<void> {
         addLog('> select project to load graph');
         return;
     }
+    if (graphInitInProgress.value) {
+        return;
+    }
     isLoading.value = true;
+    graphInitInProgress.value = true;
     addLog(`> loading graph for project: "${activeProject.value}"`);
     nodesDataSet.clear();
     edgesDataSet.clear();
     allNodesBackup.clear();
     expandedNodes.value.clear();
+
+    setGraphContainerRef();
 
     try {
         const response = await apiService.get<{
@@ -1044,11 +751,87 @@ async function initGraph(): Promise<void> {
         }>(`/graph/initial?projectName=${activeProject.value}`);
         const rawData = response;
 
-        const initialNodes = rawData.nodes.map(formatNode);
-        nodesDataSet.add(initialNodes);
-        allNodesBackup.add(initialNodes);
+        const initialNodes = rawData.nodes
+            .filter((n: NodeDataRaw) => !n.isHidden)
+            .map(formatNode);
 
-        edgesDataSet.add(rawData.edges.map(formatEdge));
+        const normalizeId = (id: any) => {
+            if (id === null || id === undefined) return String(id);
+            try {
+                return String(id).normalize('NFC').trim();
+            } catch (e) {
+                return String(id).trim();
+            }
+        };
+
+        const normalizedNodes = initialNodes.map((n) => ({
+            ...n,
+            id: normalizeId(n.id),
+        }));
+        const nodeIdCounts = new Map<string, number>();
+        normalizedNodes.forEach((n) =>
+            nodeIdCounts.set(n.id, (nodeIdCounts.get(n.id) || 0) + 1),
+        );
+        const duplicateNodeEntries = Array.from(nodeIdCounts.entries()).filter(
+            ([_, c]) => c > 1,
+        );
+
+        const initialEdges = rawData.edges.map(formatEdge);
+        const normalizedEdges = initialEdges.map((e) => ({
+            ...e,
+            id: normalizeId(e.id),
+        }));
+        const edgeIdCounts = new Map<string, number>();
+        normalizedEdges.forEach((e) =>
+            edgeIdCounts.set(e.id, (edgeIdCounts.get(e.id) || 0) + 1),
+        );
+        const duplicateEdgeEntries = Array.from(edgeIdCounts.entries()).filter(
+            ([_, c]) => c > 1,
+        );
+
+        const seenNodeIds = new Set<string>();
+        const dedupedNodes: typeof normalizedNodes = [];
+        for (const n of normalizedNodes) {
+            if (!seenNodeIds.has(n.id)) {
+                seenNodeIds.add(n.id);
+                dedupedNodes.push(n);
+            }
+        }
+
+        const seenEdgeIds = new Set<string>();
+        const dedupedEdges: typeof normalizedEdges = [];
+        for (const e of normalizedEdges) {
+            if (!seenEdgeIds.has(e.id)) {
+                seenEdgeIds.add(e.id);
+                dedupedEdges.push(e);
+            }
+        }
+
+        try {
+            for (const nodeItem of dedupedNodes) {
+                const exists = nodesDataSet.get(nodeItem.id as any);
+                if (exists) nodesDataSet.update(nodeItem);
+                else nodesDataSet.add(nodeItem);
+            }
+
+            try {
+                allNodesBackup.add(dedupedNodes);
+            } catch (err) {
+                for (const nodeItem of dedupedNodes) {
+                    const exists = allNodesBackup.get(nodeItem.id as any);
+                    if (exists) allNodesBackup.update(nodeItem);
+                    else allNodesBackup.add(nodeItem);
+                }
+            }
+
+            for (const edgeItem of dedupedEdges) {
+                const exists = edgesDataSet.get(edgeItem.id as any);
+                if (exists) edgesDataSet.update(edgeItem);
+                else edgesDataSet.add(edgeItem);
+            }
+        } catch (err) {
+            throw err;
+        }
 
         stats.nodes = allNodesBackup.length;
         stats.edges = edgesDataSet.length;
@@ -1092,19 +875,25 @@ async function initGraph(): Promise<void> {
 
         physicsEnabled.value = options.physics?.enabled ?? false;
 
+        setGraphContainerRef();
+
         if (network.value) {
             network.value.setData({ nodes: nodesDataSet, edges: edgesDataSet });
             network.value.setOptions(options);
             network.value.fit();
         } else if (graphContainer.value) {
-            network.value = markRaw(
-                new Network(
-                    graphContainer.value,
-                    { nodes: nodesDataSet, edges: edgesDataSet },
-                    options,
-                ),
-            );
-            setupNetworkEvents();
+            try {
+                network.value = markRaw(
+                    new Network(
+                        graphContainer.value,
+                        { nodes: nodesDataSet, edges: edgesDataSet },
+                        options,
+                    ),
+                );
+                setupNetworkEvents();
+            } catch (err) {
+                throw err;
+            }
         }
         updateFilteredNodes();
         addLog(`> initial graph for "${activeProject.value}" loaded`);
@@ -1114,6 +903,7 @@ async function initGraph(): Promise<void> {
         );
     } finally {
         isLoading.value = false;
+        graphInitInProgress.value = false;
     }
 }
 
@@ -1250,7 +1040,10 @@ async function expandNode(username: string): Promise<void> {
         );
         const { nodes: nodesToAddRaw, edges: edgesToAddRaw } = response;
         const nodesToAdd = nodesToAddRaw
-            .filter((n: NodeDataRaw) => !nodesDataSet.get(n.username))
+            .filter(
+                (n: NodeDataRaw) =>
+                    !nodesDataSet.get(n.username) && !n.isHidden,
+            )
             .map(formatNode);
         const edgesToAdd = edgesToAddRaw
             .filter(
@@ -1508,7 +1301,9 @@ async function expandAllNodes(): Promise<void> {
         nodesDataSet.clear();
         edgesDataSet.clear();
         expandedNodes.value.clear();
-        const allNodes = allNodesRaw.map(formatNode);
+        const allNodes = allNodesRaw
+            .filter((n: NodeDataRaw) => !n.isHidden)
+            .map(formatNode);
         const allEdges = allEdgesRaw.map(formatEdge);
         nodesDataSet.add(allNodes);
         edgesDataSet.add(allEdges);
@@ -1537,6 +1332,31 @@ function markAsNotScanned(nodeId: string): void {
     } catch (err: any) {
         addLog(
             `<span class="log-error">error marking node as unscanned: ${err.message}</span>`,
+        );
+    }
+}
+
+async function toggleHideNode(nodeId: string): Promise<void> {
+    const node = nodesDataSet.get(nodeId);
+    if (!node) return;
+
+    const newHiddenStatus = !node.isHidden;
+    addLog(`> ${newHiddenStatus ? 'hiding' : 'showing'} node ${nodeId}...`);
+
+    try {
+        await apiService.setUserHidden(nodeId, newHiddenStatus);
+        if (newHiddenStatus) {
+            nodesDataSet.remove(nodeId);
+            allNodesBackup.remove(nodeId);
+        } else {
+            nodesDataSet.update({ id: nodeId, isHidden: false });
+        }
+        addLog(
+            `> node ${nodeId} is now ${newHiddenStatus ? 'hidden' : 'visible'}`,
+        );
+    } catch (err: any) {
+        addLog(
+            `<span class="log-error">error toggling hide status for node: ${err.message}</span>`,
         );
     }
 }
@@ -1652,6 +1472,9 @@ function executeContextMenuAction(action: string): void {
         case 'markAsNotScanned':
             markAsNotScanned(nodeId);
             break;
+        case 'toggleHide':
+            toggleHideNode(nodeId);
+            break;
         case 'delete':
             deleteNode(nodeId);
             break;
@@ -1723,9 +1546,9 @@ const handleKeydown = (event: KeyboardEvent) => {
     if (event.key === '/') {
         event.preventDefault();
         if (activeTab.value === 'analyze') {
-            searchInputRef.value?.focus();
-        } else {
-            filterPanelRef.value?.focus();
+            analysisPanelRef.value?.focus();
+        } else if (graphPanelRef.value?.filterPanelRef) {
+            graphPanelRef.value.filterPanelRef.focus();
         }
     }
 
@@ -1793,6 +1616,9 @@ onMounted(async () => {
             addLog('> to start, create your first project');
         } else {
             fetchLimits();
+            nextTick(() => {
+                initGraph();
+            });
         }
     } catch (error: any) {
         const errorMessage = `failed to connect to backend. is it running? (${error.message})`;
@@ -1809,718 +1635,4 @@ onUnmounted(() => {
 });
 </script>
 
-<style>
-:root {
-    --transition-speed: 0.2s;
-    --primary-color: #7be141;
-    --secondary-color: #f0a30a;
-    --danger-color: #ff5555;
-    --info-color: #3498db;
-    --bg-dark: #1a1a1a;
-    --bg-panel: #242424;
-    --bg-input: #333;
-    --border-color: #444;
-    --border-hover: #555;
-}
-
-body,
-html {
-    margin: 0;
-    padding: 0;
-    background-color: var(--bg-dark);
-    color: #e0e0e0;
-    font-family: 'Consolas', 'Menlo', monospace;
-    overflow: hidden;
-}
-
-* {
-    box-sizing: border-box;
-}
-
-#app {
-    display: flex;
-    height: 100vh;
-    animation: fadeIn 0.5s ease-in-out;
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-
-    to {
-        opacity: 1;
-    }
-}
-
-.logo-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    margin-bottom: 10px;
-    animation: slideDown 0.5s ease-out;
-}
-
-@keyframes slideDown {
-    from {
-        transform: translateY(-20px);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-.logo-container h2 {
-    margin: 0;
-    margin-bottom: 5px;
-    color: var(--primary-color);
-    text-shadow: 0 0 10px rgba(123, 225, 65, 0.3);
-}
-
-.logo-container span {
-    font-family: Verdana, Geneva, Tahoma, sans-serif;
-    font-size: 12px;
-    opacity: 0.8;
-}
-
-.logo {
-    width: 4rem;
-    fill: white;
-    color: white;
-    margin-bottom: 5px;
-    transition: all 0.3s ease;
-}
-
-.logo:hover {
-    transform: scale(1.05);
-    filter: drop-shadow(0 0 8px rgba(123, 225, 65, 0.5));
-}
-
-.logo-error {
-    animation: pulse-error 1s infinite;
-}
-
-.main-panel {
-    width: 350px;
-    height: 100%;
-    background-color: var(--bg-panel);
-    border-right: 1px solid var(--border-color);
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-    overflow-y: auto;
-    transition: transform 0.3s ease;
-}
-
-.main-panel::-webkit-scrollbar {
-    width: 8px;
-}
-
-.main-panel::-webkit-scrollbar-track {
-    background: var(--bg-dark);
-    border-radius: 4px;
-}
-
-.main-panel::-webkit-scrollbar-thumb {
-    background: var(--border-hover);
-    border-radius: 4px;
-    transition: background 0.2s ease;
-}
-
-.main-panel::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-color);
-}
-
-.main-panel {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-hover) var(--bg-dark);
-}
-
-.graph-panel {
-    flex-grow: 1;
-    height: 100%;
-    position: relative;
-    background-color: var(--bg-dark);
-}
-
-.graph-panel .watermark {
-    position: absolute;
-    text-align: right;
-    bottom: 0;
-    right: 0;
-    margin-right: 3rem;
-    margin-bottom: 2rem;
-    opacity: 0.015;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-}
-
-.graph-panel .watermark img {
-    width: 20rem;
-    filter: invert(1);
-}
-
-.graph-container {
-    width: 100%;
-    height: 100%;
-}
-
-.graph-container,
-.graph-container .vis-network,
-.graph-container canvas,
-.vis-network,
-.vis-network canvas {
-    background-color: transparent !important;
-    border: none !important;
-    outline: none !important;
-    display: block;
-}
-
-.graph-container canvas:focus {
-    outline: none !important;
-}
-
-input,
-button,
-select {
-    width: 100%;
-    padding: 8px;
-    background-color: var(--bg-input);
-    border: 1px solid var(--border-hover);
-    color: #e0e0e0;
-    border-radius: 4px;
-    box-sizing: border-box;
-    transition: all var(--transition-speed) ease;
-}
-
-input:focus,
-select:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 8px rgba(123, 225, 65, 0.3);
-    outline: none;
-}
-
-input:hover,
-select:hover {
-    border-color: var(--primary-color);
-}
-
-button {
-    cursor: pointer;
-    background-color: #7be141;
-    color: #1a1a1a;
-    font-weight: bold;
-}
-
-button:hover {
-    filter: brightness(1.1);
-}
-
-button:disabled {
-    background-color: var(--border-hover);
-    color: #aaa;
-    cursor: not-allowed;
-    filter: none;
-}
-
-button:disabled::before {
-    display: none;
-}
-
-.button-active-feedback:active {
-    transform: scale(0.98);
-}
-
-.link-button {
-    background: none;
-    border: none;
-    color: var(--primary-color);
-    cursor: pointer;
-    text-decoration: underline;
-    font-size: 11px;
-    padding: 0;
-    font-weight: normal;
-    transition: all var(--transition-speed) ease;
-}
-
-.link-button:hover {
-    color: #a0f171;
-    text-shadow: 0 0 5px rgba(123, 225, 65, 0.5);
-}
-
-.link-button::before {
-    display: none;
-}
-
-.filter-control {
-    display: flex;
-    align-items: center;
-    padding: 0;
-}
-
-.filter-control label {
-    margin-left: 10px;
-    cursor: pointer;
-    transition: color var(--transition-speed) ease;
-}
-
-.filter-control label:hover {
-    color: var(--primary-color);
-}
-
-.filter-control input {
-    width: auto;
-    margin-bottom: 0;
-}
-
-.scan-max-control {
-    margin-top: 1rem;
-}
-
-.scan-max-control input {
-    margin-top: 0.3rem;
-    margin-bottom: 0.5rem;
-}
-
-.scan-max-control label {
-    color: #aaa;
-}
-
-.stats {
-    border-top: 1px solid var(--border-color);
-    margin-top: auto;
-    padding-top: 10px;
-    animation: slideUp 0.5s ease-out;
-}
-
-@keyframes slideUp {
-    from {
-        transform: translateY(20px);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
-}
-
-.stats div {
-    transition: all var(--transition-speed) ease;
-    padding: 2px 0;
-}
-
-.stats div:hover {
-    color: var(--primary-color);
-}
-
-.stats div span {
-    color: var(--primary-color);
-    float: right;
-    font-weight: bold;
-}
-
-.tabs {
-    display: flex;
-    margin: 20px 0;
-    gap: 5px;
-}
-
-.tabs button {
-    flex-grow: 1;
-    background: var(--bg-input);
-    border: 1px solid var(--border-hover);
-    color: #aaa;
-    padding: 10px;
-    cursor: pointer;
-    border-radius: 4px;
-    position: relative;
-    transition: all var(--transition-speed) ease;
-}
-
-.tabs button::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    left: 50%;
-    width: 0;
-    height: 2px;
-    background: var(--primary-color);
-    transform: translateX(-50%);
-    transition: width 0.3s ease;
-}
-
-.tabs button.active::after {
-    width: 80%;
-}
-
-.tabs button.active {
-    background: var(--border-hover);
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.tabs button:hover:not(.active) {
-    background: #3a3a3a;
-    color: #ddd;
-}
-
-.panel-content {
-    display: flex;
-    flex-direction: column;
-    animation: fadeIn 0.3s ease-out;
-}
-
-.controls-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    color: #aaa;
-    text-transform: uppercase;
-    font-size: 11px;
-}
-
-hr {
-    border: 0;
-    border-top: 1px solid var(--border-color);
-    width: 100%;
-    margin: 15px 0;
-    opacity: 0.5;
-}
-
-.selected-info {
-    font-size: 14px;
-    text-align: center;
-    padding: 8px;
-    margin-bottom: 8px;
-    background-color: rgba(240, 163, 10, 0.1);
-    border: 1px solid var(--secondary-color);
-    border-radius: 4px;
-    color: var(--secondary-color);
-    animation: slideDown 0.3s ease-out;
-}
-
-.selected-info a {
-    color: var(--secondary-color);
-    font-weight: bold;
-    text-decoration: none;
-    transition: all var(--transition-speed) ease;
-}
-
-.selected-info a:hover {
-    text-decoration: underline;
-    text-shadow: 0 0 5px rgba(240, 163, 10, 0.5);
-}
-
-.log-success {
-    color: #7be141;
-}
-
-.log-error {
-    color: #ff5555;
-}
-
-.preloader {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background-color: #1a1a1a;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 9999;
-    transition: opacity 0.5s ease;
-}
-
-.preloader-logo {
-    width: 8rem;
-    fill: #ffffff;
-    transform: scale(2);
-    animation: pulse 1s infinite cubic-bezier(0.165, 0.84, 0.44, 1);
-    transition: fill 1s;
-}
-
-.preloader-logo-error {
-    animation: pulse-error 1s infinite cubic-bezier(0.165, 0.84, 0.44, 1);
-    fill: #ff5555;
-}
-
-.preloader p {
-    margin-top: 60px;
-    color: #e0e0e0;
-    font-size: 1.2rem;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-}
-
-.preloader-error {
-    text-align: center;
-    padding: 20px;
-    max-width: 600px;
-    margin-top: 1rem;
-}
-
-.preloader-error h2 {
-    color: #ff5555;
-    text-transform: uppercase;
-}
-
-.preloader-error p {
-    margin-top: 0;
-    color: #aaa;
-    font-size: 1rem;
-    letter-spacing: normal;
-    text-transform: none;
-    line-height: 1.5;
-}
-
-@keyframes pulse {
-    0% {
-        transform: scale(2);
-        opacity: 0.7;
-    }
-
-    50% {
-        transform: scale(2.1);
-        opacity: 1;
-    }
-
-    100% {
-        transform: scale(2);
-        opacity: 0.7;
-    }
-}
-
-@keyframes pulse-error {
-    0% {
-        fill: #ff5555;
-    }
-
-    50% {
-        fill: #f00a0a;
-    }
-
-    100% {
-        fill: #ff5555;
-    }
-}
-
-.stats span.connecting {
-    color: #f0a30a;
-}
-
-.stats span.connected {
-    color: #7be141;
-}
-
-.stats span.error {
-    color: #ff5555;
-}
-
-.hover-tooltip {
-    position: absolute;
-    background-color: #3a3a3a;
-    border: 1px solid #666;
-    border-radius: 4px;
-    padding: 6px 10px;
-    z-index: 9999;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    color: #e0e0e0;
-    font-size: 12px;
-    pointer-events: none;
-    white-space: nowrap;
-}
-
-.hover-tooltip a {
-    color: inherit;
-    text-decoration: none;
-}
-
-.hover-tooltip a:hover {
-    text-decoration: underline;
-}
-
-.context-menu {
-    position: absolute;
-    background-color: #2c2c2c;
-    border: 1px solid var(--border-hover);
-    border-radius: 5px;
-    min-width: 200px;
-    z-index: 10000;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-    color: #e0e0e0;
-    font-size: 14px;
-    padding: 5px 0;
-    transform-origin: top left;
-    backdrop-filter: blur(10px);
-    background-color: rgba(44, 44, 44, 0.95);
-}
-
-.context-menu-anim-enter-active,
-.context-menu-anim-leave-active {
-    transition:
-        transform var(--transition-speed) ease,
-        opacity var(--transition-speed) ease;
-}
-
-.context-menu-anim-enter-from,
-.context-menu-anim-leave-to {
-    opacity: 0;
-    transform: scale(0.95);
-}
-
-.context-menu-header {
-    padding: 8px 12px;
-    font-weight: bold;
-    color: var(--primary-color);
-    margin-bottom: 5px;
-    transition: all var(--transition-speed) ease;
-}
-
-.context-menu-header:hover {
-    background-color: rgba(123, 225, 65, 0.1);
-}
-
-.context-menu-separator {
-    height: 1px;
-    background-color: var(--border-color);
-    margin: 5px 0;
-}
-
-.context-menu-section {
-    padding: 8px 12px;
-    font-size: 11px;
-    text-transform: uppercase;
-    color: #999;
-}
-
-.context-menu-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    transition: all var(--transition-speed) ease;
-    position: relative;
-}
-
-.context-menu-item::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 50%;
-    width: 3px;
-    height: 0;
-    background: var(--primary-color);
-    transform: translateY(-50%);
-    transition: height 0.2s ease;
-}
-
-.context-menu-item:hover::before {
-    height: 70%;
-}
-
-.context-menu-item.danger {
-    color: var(--danger-color);
-}
-
-.context-menu-item.danger::before {
-    background: var(--danger-color);
-}
-
-.context-menu-item:hover {
-    background-color: rgba(123, 225, 65, 0.15);
-    color: var(--primary-color);
-    padding-left: 16px;
-}
-
-.context-menu-item.danger:hover {
-    background-color: rgba(255, 85, 85, 0.15);
-    color: var(--danger-color);
-}
-
-.context-menu-list {
-    max-height: 200px;
-    overflow-y: auto;
-}
-
-.context-menu-list::-webkit-scrollbar {
-    width: 5px;
-}
-
-.context-menu-list::-webkit-scrollbar-track {
-    background: #2c2c2c;
-}
-
-.context-menu-list::-webkit-scrollbar-thumb {
-    background: var(--border-hover);
-    border-radius: 3px;
-}
-
-.context-menu-list::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-color);
-}
-
-.context-menu-item-small {
-    padding: 6px 16px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all var(--transition-speed) ease;
-}
-
-.context-menu-item-small:hover {
-    background-color: rgba(123, 225, 65, 0.1);
-    color: var(--primary-color);
-    padding-left: 20px;
-}
-
-.project-selector {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    padding-bottom: 20px;
-    position: relative;
-    animation: slideDown 0.4s ease-out;
-}
-
-.project-selector select {
-    position: relative;
-    z-index: 100;
-    cursor: pointer;
-}
-
-.project-selector select:hover {
-    transform: translateY(-1px);
-}
-
-.new-project {
-    display: flex;
-    flex-shrink: 0;
-}
-
-.new-project input {
-    width: 150px;
-    margin-bottom: 0;
-    border-radius: 4px 0 0 4px;
-    border-right: none;
-}
-
-.new-project button {
-    width: 40px;
-    margin-bottom: 0;
-    border-radius: 0 4px 4px 0;
-    font-size: 20px;
-    line-height: 1;
-    padding: 0;
-}
-
-.new-project button:hover {
-    transform: scale(1.05);
-}
-</style>
+<style scoped></style>
