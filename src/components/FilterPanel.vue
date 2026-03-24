@@ -44,17 +44,24 @@
                             <ul>
                                 <li
                                     @mousedown.prevent="
-                                        selectHint('degree > 10')
+                                        selectHint('degree > 3 & !scanned')
                                     "
                                 >
-                                    <code>degree &gt; 10</code>
+                                    <code>degree > 3 & !scanned</code>
                                 </li>
                                 <li
                                     @mousedown.prevent="
-                                        selectHint('label contains user')
+                                        selectHint('in-degree > 5 | label contains admin')
                                     "
                                 >
-                                    <code>label contains user</code>
+                                    <code>in-degree > 5 | label contains admin</code>
+                                </li>
+                                <li
+                                    @mousedown.prevent="
+                                        selectHint('!scanned')
+                                    "
+                                >
+                                    <code>!scanned</code>
                                 </li>
                             </ul>
                         </div>
@@ -101,55 +108,30 @@ const allHints: Hint[] = [
     { text: 'degree', type: 'metric', description: 'total connections' },
     { text: 'in-degree', type: 'metric', description: 'incoming connections' },
     { text: 'out-degree', type: 'metric', description: 'outgoing connections' },
+    { text: 'scanned', type: 'metric', description: 'scanned flag' },
     { text: '>', type: 'operator', description: 'greater than' },
     { text: '<', type: 'operator', description: 'less than' },
     { text: '=', type: 'operator', description: 'equals' },
     { text: 'contains', type: 'operator', description: 'contains text' },
+    { text: '&', type: 'operator', description: 'AND' },
+    { text: '|', type: 'operator', description: 'OR' },
+    { text: '!', type: 'operator', description: 'NOT' },
 ];
 
 const filteredHints = computed<Hint[]>(() => {
-    const parts = props.modelValue
-        .trim()
-        .split(' ')
-        .filter((p) => p);
-    const lastPart = props.modelValue.slice(
-        props.modelValue.lastIndexOf(' ') + 1
-    );
-
-    if (
-        parts.length === 0 ||
-        (parts.length === 1 && props.modelValue.slice(-1) !== ' ')
-    ) {
-        return allHints.filter(
-            (h) => h.type === 'metric' && h.text.startsWith(lastPart)
-        );
+    const trimmed = props.modelValue.trim();
+    if (!trimmed) {
+        return allHints.filter(h => h.type === 'metric');
     }
 
-    if (parts.length === 1 && props.modelValue.slice(-1) === ' ') {
-        const metric = parts[0];
-        if (metric === 'label') {
-            return allHints.filter((h) => h.text === 'contains');
-        } else if (['degree', 'in-degree', 'out-degree'].includes(metric)) {
-            return allHints.filter((h) => ['>', '<', '='].includes(h.text));
-        }
+    const lastPartMatch = props.modelValue.match(/[\w-]+$/);
+    const lastPart = lastPartMatch ? lastPartMatch[0] : '';
+    
+    if (props.modelValue.endsWith(' ') || props.modelValue.endsWith('&') || props.modelValue.endsWith('|') || props.modelValue.endsWith('!')) {
+         return allHints;
     }
 
-    if (parts.length === 2 && props.modelValue.slice(-1) !== ' ') {
-        const metric = parts[0];
-        if (metric === 'label') {
-            return allHints.filter(
-                (h) => h.text === 'contains' && h.text.startsWith(lastPart)
-            );
-        } else if (['degree', 'in-degree', 'out-degree'].includes(metric)) {
-            return allHints.filter(
-                (h) =>
-                    ['>', '<', '='].includes(h.text) &&
-                    h.text.startsWith(lastPart)
-            );
-        }
-    }
-
-    return [];
+    return allHints.filter(h => h.text.startsWith(lastPart));
 });
 
 watch(

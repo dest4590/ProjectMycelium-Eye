@@ -260,7 +260,7 @@
                             v-model="maxFollowersLimit"
                             @change="
                                 maxFollowersLimit !== null &&
-                                    setLimit('followers', maxFollowersLimit)
+                                setLimit('followers', maxFollowersLimit)
                             "
                         />
 
@@ -273,7 +273,7 @@
                             v-model="maxFollowingLimit"
                             @change="
                                 maxFollowingLimit !== null &&
-                                    setLimit('following', maxFollowingLimit)
+                                setLimit('following', maxFollowingLimit)
                             "
                         />
                     </div>
@@ -404,7 +404,9 @@
                         class="context-menu-section"
                         v-if="contextMenu.connectedNodes.length > 0"
                     >
-                        connected nodes ({{ contextMenu.connectedNodes.length }})
+                        connected nodes ({{
+                            contextMenu.connectedNodes.length
+                        }})
                     </div>
                     <div class="context-menu-list">
                         <div
@@ -486,7 +488,8 @@ import GraphControls from '@/components/GraphControls.vue';
 
 import { useLog } from '@/composables/useLog';
 import { useToast } from '@/composables/useToast';
-import { api, apiV1 } from '@/services/api';
+import { apiService } from '@/services/ApiService';
+import { FilterService, type NodeContext } from '@/services/FilterService';
 import type {
     NodeDataRaw,
     EdgeDataRaw,
@@ -517,7 +520,7 @@ const activeTab = ref<string>('scan');
 const isScanning = ref<boolean>(false);
 const tasks: Record<string, Task> = reactive({});
 const scanType = ref<'followers' | 'following' | 'force' | 'default'>(
-    'default'
+    'default',
 );
 
 const MAX_CONCURRENT_SCANS: number = 3;
@@ -533,7 +536,7 @@ const statusMap: Record<string, StatusMapItem> = {
 
 const isLoading = ref<boolean>(true);
 const isDraggingNode = ref<boolean>(false);
-const startUser = ref<string>('dest451920');
+const startUser = ref<string>('exampleuser');
 const scanDepth = ref<number>(0);
 const stats = reactive({ nodes: 0, edges: 0, nodesOnGraph: 0 });
 const wsStatus = ref<string>('connecting');
@@ -605,19 +608,19 @@ watch(
         } else {
             window.removeEventListener(
                 'mousedown',
-                handleContextMenuClickOutside
+                handleContextMenuClickOutside,
             );
         }
     },
-    { immediate: true }
+    { immediate: true },
 );
 
 const isScanningLimitReached = computed<boolean>(
-    () => Object.keys(tasks || {}).length >= MAX_CONCURRENT_SCANS
+    () => Object.keys(tasks || {}).length >= MAX_CONCURRENT_SCANS,
 );
 
 const runningTasksCount = computed<number>(
-    () => Object.keys(tasks || {}).length
+    () => Object.keys(tasks || {}).length,
 );
 
 const scanButtonLabel = computed<string>(() => {
@@ -646,7 +649,7 @@ const randomTagLines: string[] = [
     'visualizing the invisible',
 ];
 const tagline = computed<string>(
-    () => randomTagLines[Math.floor(Math.random() * randomTagLines.length)]
+    () => randomTagLines[Math.floor(Math.random() * randomTagLines.length)],
 );
 
 const resetAnalysisState = () => {
@@ -683,21 +686,20 @@ watch(activeTab, (newTab) => {
 async function fetchProjects(): Promise<void> {
     try {
         addLog('> requesting project list...');
-        const response = await apiV1.get<string[]>('/projects');
-        projects.value = response.data;
+        projects.value = await apiService.get<string[]>('/projects');
         if (projects.value.length > 0) {
             if (!activeProject.value) {
                 activeProject.value = projects.value[0];
             }
             addLog(
-                `> projects loaded. active project: "${activeProject.value}"`
+                `> projects loaded. active project: "${activeProject.value}"`,
             );
         } else {
             addLog('> no projects yet. create the first one');
         }
     } catch (error: any) {
         addLog(
-            `<span class="log-error">failed to load projects: ${error.message}</span>`
+            `<span class="log-error">failed to load projects: ${error.message}</span>`,
         );
     }
 }
@@ -714,7 +716,7 @@ async function createProject(): Promise<void> {
         return;
     }
     try {
-        await apiV1.post(`/projects?name=${newProjectName.value}`);
+        await apiService.post(`/projects?name=${newProjectName.value}`);
         projects.value.push(newProjectName.value);
         activeProject.value = newProjectName.value;
         addLog(`> project created and selected: "${activeProject.value}"`);
@@ -722,9 +724,8 @@ async function createProject(): Promise<void> {
         newProjectName.value = '';
     } catch (error: any) {
         addLog(
-            `<span class="log-error">error creating project: ${error.message}</span>`
+            `<span class="log-error">error creating project: ${error.message}</span>`,
         );
-        toast.error(`Error creating project: ${error.message}`);
     }
 }
 
@@ -735,7 +736,7 @@ async function deleteProject(): Promise<void> {
     }
     if (
         !confirm(
-            `are you sure you want to delete project "${activeProject.value}" and all its data?`
+            `are you sure you want to delete project "${activeProject.value}" and all its data?`,
         )
     ) {
         return;
@@ -743,7 +744,7 @@ async function deleteProject(): Promise<void> {
 
     try {
         const projectToDelete = activeProject.value;
-        await apiV1.delete(`/projects/${projectToDelete}`);
+        await apiService.delete(`/projects/${projectToDelete}`);
         projects.value = projects.value.filter((p) => p !== projectToDelete);
         if (projects.value.length > 0) {
             activeProject.value = projects.value[0];
@@ -754,9 +755,8 @@ async function deleteProject(): Promise<void> {
         toast.success(`Project "${projectToDelete}" deleted`);
     } catch (error: any) {
         addLog(
-            `<span class="log-error">error deleting project: ${error.message}</span>`
+            `<span class="log-error">error deleting project: ${error.message}</span>`,
         );
-        toast.error(`Error deleting project: ${error.message}`);
     } finally {
         showProjectDropdown.value = false;
     }
@@ -764,17 +764,17 @@ async function deleteProject(): Promise<void> {
 
 async function fetchLimits(): Promise<void> {
     try {
-        const { data } = await apiV1.get<{
+        const response = await apiService.get<{
             maxFollowers: number | null;
             maxFollowing: number | null;
         }>('/settings/limits');
-        const { maxFollowers, maxFollowing } = data;
+        const { maxFollowers, maxFollowing } = response;
 
         maxFollowersLimit.value = maxFollowers ?? null;
         maxFollowingLimit.value = maxFollowing ?? null;
     } catch (error: any) {
         addLog(
-            `<span class="log-error">failed to load limits: ${error.message}</span>`
+            `<span class="log-error">failed to load limits: ${error.message}</span>`,
         );
     }
 }
@@ -785,11 +785,11 @@ async function setLimit(type: string, value: number) {
         return;
     }
     try {
-        await apiV1.post(`/settings/limits/${type}?value=${value}`);
+        await apiService.post(`/settings/limits/${type}?value=${value}`);
         addLog(`> set limit ${type}: ${value}`);
     } catch (error: any) {
         addLog(
-            `<span class="log-error">error setting limit ${type}: ${error.message}</span>`
+            `<span class="log-error">error setting limit ${type}: ${error.message}</span>`,
         );
     }
 }
@@ -900,7 +900,7 @@ const stompClient = new Client({
                             source: update.source,
                             target: update.target,
                             active: true,
-                        })
+                        }),
                     );
                 }
             } else if (update.type === 'NODE_DELETION') {
@@ -937,7 +937,7 @@ const stompClient = new Client({
     onStompError: (error) => {
         wsStatus.value = 'error';
         addLog(
-            `<span class="log-error">WS error: ${error.headers.message}</span>`
+            `<span class="log-error">WS error: ${error.headers.message}</span>`,
         );
     },
     onWebSocketError: (error) => {
@@ -946,7 +946,7 @@ const stompClient = new Client({
 });
 
 async function initiateScan(
-    type: 'followers' | 'following' | 'force' | 'default'
+    type: 'followers' | 'following' | 'force' | 'default',
 ): Promise<void> {
     if (!activeProject.value || !startUser.value) {
         addLog('<span class="log-error">select project and enter user</span>');
@@ -955,14 +955,14 @@ async function initiateScan(
     }
 
     addLog(
-        `> [Project: ${activeProject.value}] Sending scan task for ${startUser.value} (type: ${type})...`
+        `> [Project: ${activeProject.value}] Sending scan task for ${startUser.value} (type: ${type})...`,
     );
     try {
-        const response = await apiV1.post<{ taskId: string }>(
-            `/scan/start?username=${startUser.value}&depth=${scanDepth.value}&projectName=${activeProject.value}&type=${type}`
+        const response = await apiService.post<{ taskId: string }>(
+            `/scan/start?username=${startUser.value}&depth=${scanDepth.value}&projectName=${activeProject.value}&type=${type}`,
         );
 
-        const { taskId } = response.data;
+        const { taskId } = response;
 
         tasks[taskId] = {
             startUser: startUser.value,
@@ -973,7 +973,6 @@ async function initiateScan(
         toast.success(`Scan for ${startUser.value} started`);
     } catch (err: any) {
         addLog(`> error creating task: ${err.message}`);
-        toast.error(`Error creating task: ${err.message}`);
     }
 }
 
@@ -1039,11 +1038,11 @@ async function initGraph(): Promise<void> {
     expandedNodes.value.clear();
 
     try {
-        const response = await apiV1.get<{
+        const response = await apiService.get<{
             nodes: NodeDataRaw[];
             edges: EdgeDataRaw[];
         }>(`/graph/initial?projectName=${activeProject.value}`);
-        const rawData = response.data;
+        const rawData = response;
 
         const initialNodes = rawData.nodes.map(formatNode);
         nodesDataSet.add(initialNodes);
@@ -1102,8 +1101,8 @@ async function initGraph(): Promise<void> {
                 new Network(
                     graphContainer.value,
                     { nodes: nodesDataSet, edges: edgesDataSet },
-                    options
-                )
+                    options,
+                ),
             );
             setupNetworkEvents();
         }
@@ -1111,7 +1110,7 @@ async function initGraph(): Promise<void> {
         addLog(`> initial graph for "${activeProject.value}" loaded`);
     } catch (error: any) {
         addLog(
-            `<span class="log-error">error loading graph: ${error.message}</span>`
+            `<span class="log-error">error loading graph: ${error.message}</span>`,
         );
     } finally {
         isLoading.value = false;
@@ -1146,7 +1145,7 @@ function setupNetworkEvents(): void {
                 pathStart.value = nodeId;
                 pathEnd.value = nodeId;
             }
-        }
+        },
     );
 
     network.value.on(
@@ -1171,7 +1170,7 @@ function setupNetworkEvents(): void {
                     }, HOVER_DELAY);
                 }
             }
-        }
+        },
     );
     network.value.on('blurNode', () => {
         if (hoverTimer) {
@@ -1217,12 +1216,12 @@ function setupNetworkEvents(): void {
                 const connectedIds = Array.isArray(connectedIdsRaw)
                     ? connectedIdsRaw.filter((id) => typeof id === 'string')
                     : typeof connectedIdsRaw === 'string'
-                    ? [connectedIdsRaw]
-                    : [];
+                      ? [connectedIdsRaw]
+                      : [];
                 const connectedNodeObjects = nodesDataSet.get(connectedIds);
                 contextMenu.nodeId = nodeId;
                 contextMenu.connectedNodes = connectedNodeObjects.map(
-                    (n: VisNode) => n.label
+                    (n: VisNode) => n.label,
                 );
                 contextMenu.x = params.pointer.DOM.x;
                 contextMenu.y = params.pointer.DOM.y;
@@ -1230,7 +1229,7 @@ function setupNetworkEvents(): void {
             } else {
                 hideContextMenu();
             }
-        }
+        },
     );
 }
 
@@ -1243,30 +1242,31 @@ async function expandNode(username: string): Promise<void> {
     }
     addLog(`> expanding node ${username}...`);
     try {
-        const response = await apiV1.get<{
+        const response = await apiService.get<{
             nodes: NodeDataRaw[];
             edges: EdgeDataRaw[];
         }>(
-            `/graph/expand?username=${username}&projectName=${activeProject.value}`
+            `/graph/expand?username=${username}&projectName=${activeProject.value}`,
         );
-        const { nodes: nodesToAddRaw, edges: edgesToAddRaw } = response.data;
+        const { nodes: nodesToAddRaw, edges: edgesToAddRaw } = response;
         const nodesToAdd = nodesToAddRaw
             .filter((n: NodeDataRaw) => !nodesDataSet.get(n.username))
             .map(formatNode);
         const edgesToAdd = edgesToAddRaw
             .filter(
-                (e: EdgeDataRaw) => !edgesDataSet.get(`${e.source}-${e.target}`)
+                (e: EdgeDataRaw) =>
+                    !edgesDataSet.get(`${e.source}-${e.target}`),
             )
             .map(formatEdge);
         if (nodesToAdd.length > 0) nodesDataSet.add(nodesToAdd);
         if (edgesToAdd.length > 0) edgesDataSet.add(edgesToAdd);
         expandedNodes.value.add(username);
         addLog(
-            `> node ${username} expanded. Added: ${nodesToAdd.length} nodes, ${edgesToAdd.length} edges.`
+            `> node ${username} expanded. Added: ${nodesToAdd.length} nodes, ${edgesToAdd.length} edges.`,
         );
     } catch (err: any) {
         addLog(
-            `<span class="log-error">error expanding node: ${err.message}</span>`
+            `<span class="log-error">error expanding node: ${err.message}</span>`,
         );
     }
 }
@@ -1274,18 +1274,18 @@ async function expandNode(username: string): Promise<void> {
 async function deleteNode(username: string): Promise<void> {
     if (
         !confirm(
-            `are you sure you want to permanently delete node "${username}" and all its connections?`
+            `are you sure you want to permanently delete node "${username}" and all its connections?`,
         )
     ) {
         return;
     }
     addLog(`> deleting node ${username}...`);
     try {
-        await apiV1.delete(`/graph/${username}`);
+        await apiService.delete(`/graph/${username}`);
         addLog(`> node ${username} successfully deleted`);
     } catch (err: any) {
         addLog(
-            `<span class="log-error">error deleting node: ${err.message}</span>`
+            `<span class="log-error">error deleting node: ${err.message}</span>`,
         );
     }
 }
@@ -1296,14 +1296,14 @@ function getFullNodeList(): VisNode[] {
 
 function updateSuggestions(
     query: string | number,
-    suggestionsRef: Ref<string[]>
+    suggestionsRef: Ref<string[]>,
 ): void {
     const queryString = String(query);
     if (queryString.length > 0) {
         suggestionsRef.value = getFullNodeList()
             .map((n: VisNode) => n.id)
             .filter((id: string) =>
-                id.toLowerCase().includes(queryString.toLowerCase())
+                id.toLowerCase().includes(queryString.toLowerCase()),
             )
             .sort((a, b) => a.localeCompare(b));
     } else {
@@ -1398,16 +1398,16 @@ async function findPath(): Promise<void> {
     }
     addLog(`> searching for path from ${pathStart.value} to ${pathEnd.value}`);
     try {
-        const response = await apiV1.get<string[]>(
-            `/graph/shortest-path?start=${pathStart.value}&end=${pathEnd.value}&projectName=${activeProject.value}`
+        const response = await apiService.get<string[]>(
+            `/graph/shortest-path?start=${pathStart.value}&end=${pathEnd.value}&projectName=${activeProject.value}`,
         );
-        const pathUsernames = response.data;
+        const pathUsernames = response;
         if (pathUsernames.length > 0) {
             highlightPath(pathUsernames);
             addLog(
                 `> path found: <span class="log-success">${pathUsernames.join(
-                    ' → '
-                )}</span>`
+                    ' → ',
+                )}</span>`,
             );
         } else {
             addLog('> path not found');
@@ -1432,13 +1432,13 @@ function highlightPath(path: string[]): void {
         nodesDataSet.map((n: VisNode) => ({
             id: n.id,
             color: path.includes(n.id) ? '#FF5555' : '#444',
-        }))
+        })),
     );
     edgesDataSet.update(
         edgesDataSet.map((e: VisEdge) => ({
             id: e.id,
             color: { color: pathEdgesIds.includes(e.id) ? '#FF5555' : '#222' },
-        }))
+        })),
     );
 }
 
@@ -1446,7 +1446,7 @@ function highlightNeighbors(): void {
     if (!selectedNode.value || !network.value) return;
     resetHighlight();
     let neighborNodesIdsRaw = network.value.getConnectedNodes(
-        selectedNode.value
+        selectedNode.value,
     );
 
     const neighborNodesIds: string[] = Array.isArray(neighborNodesIdsRaw)
@@ -1454,20 +1454,20 @@ function highlightNeighbors(): void {
               .filter((id) => typeof id === 'string')
               .map((id) => id as string)
         : typeof neighborNodesIdsRaw === 'string'
-        ? [neighborNodesIdsRaw]
-        : [];
+          ? [neighborNodesIdsRaw]
+          : [];
     const updates = nodesDataSet.map((n: VisNode) => ({
         id: n.id,
         color:
             n.id === selectedNode.value
                 ? '#FF5555'
                 : neighborNodesIds.includes(n.id)
-                ? '#F0A30A'
-                : '#444',
+                  ? '#F0A30A'
+                  : '#444',
     }));
     nodesDataSet.update(updates);
     const connectedEdgesIds = network.value.getConnectedEdges(
-        selectedNode.value
+        selectedNode.value,
     );
     edgesDataSet.update(
         edgesDataSet.map((e: VisEdge) => ({
@@ -1475,7 +1475,7 @@ function highlightNeighbors(): void {
             color: {
                 color: connectedEdgesIds.includes(e.id) ? '#FFFFFF' : '#222',
             },
-        }))
+        })),
     );
 }
 
@@ -1497,13 +1497,13 @@ async function expandAllNodes(): Promise<void> {
     isLoading.value = true;
     addLog('> requesting full graph from database...');
     try {
-        const response = await apiV1.get<{
+        const response = await apiService.get<{
             nodes: NodeDataRaw[];
             edges: EdgeDataRaw[];
         }>(`/graph/all?projectName=${activeProject.value}`);
-        const { nodes: allNodesRaw, edges: allEdgesRaw } = response.data;
+        const { nodes: allNodesRaw, edges: allEdgesRaw } = response;
         addLog(
-            `> full graph received. nodes: ${allNodesRaw.length}, edges: ${allEdgesRaw.length}`
+            `> full graph received. nodes: ${allNodesRaw.length}, edges: ${allEdgesRaw.length}`,
         );
         nodesDataSet.clear();
         edgesDataSet.clear();
@@ -1512,12 +1512,12 @@ async function expandAllNodes(): Promise<void> {
         const allEdges = allEdgesRaw.map(formatEdge);
         nodesDataSet.add(allNodes);
         edgesDataSet.add(allEdges);
-        allNodes.forEach((node) => expandedNodes.value.add(node.id));
+        allNodes.forEach((node: VisNode) => expandedNodes.value.add(node.id));
         updateFilteredNodes();
         addLog('> graph fully updated');
     } catch (err: any) {
         addLog(
-            `<span class="log-error">error loading full graph: ${err.message}</span>`
+            `<span class="log-error">error loading full graph: ${err.message}</span>`,
         );
     } finally {
         isLoading.value = false;
@@ -1532,11 +1532,11 @@ function markAsNotScanned(nodeId: string): void {
         color: '#F0A30A',
     });
     try {
-        apiV1.patch(`/user/${nodeId}/scanned?scanned=false`);
+        apiService.patch(`/user/${nodeId}/scanned?scanned=false`);
         addLog(`> node ${nodeId} marked as unscanned`);
     } catch (err: any) {
         addLog(
-            `<span class="log-error">error marking node as unscanned: ${err.message}</span>`
+            `<span class="log-error">error marking node as unscanned: ${err.message}</span>`,
         );
     }
 }
@@ -1553,93 +1553,65 @@ function applyFilter(): void {
         return;
     }
     addLog(`> applying filter: "${filterQuery.value}"`);
-    const match = filterQuery.value
-        .toLowerCase()
-        .match(
-            /^(in-degree|out-degree|degree|label)\s*([<>=]|contains)\s*(.+)$/
-        );
-    if (!match) {
+
+    try {
+        const filterFn = FilterService.parse(filterQuery.value);
+        const allNodes = nodesDataSet.get();
+        const allEdges = edgesDataSet.get();
+
+        const inDegreeMap = new Map<string, number>();
+        const outDegreeMap = new Map<string, number>();
+        allNodes.forEach((node: VisNode) => {
+            inDegreeMap.set(node.id, 0);
+            outDegreeMap.set(node.id, 0);
+        });
+        allEdges.forEach((edge: VisEdge) => {
+            outDegreeMap.set(edge.from, (outDegreeMap.get(edge.from) || 0) + 1);
+            inDegreeMap.set(edge.to, (inDegreeMap.get(edge.to) || 0) + 1);
+        });
+
+        const highlightedNodeIds = new Set<string>();
+        allNodes.forEach((node: VisNode) => {
+            const inDegree = inDegreeMap.get(node.id) || 0;
+            const outDegree = outDegreeMap.get(node.id) || 0;
+            const context: NodeContext = {
+                id: node.id,
+                label: node.label,
+                scanned: node.scanned,
+                inDegree,
+                outDegree,
+                degree: inDegree + outDegree,
+            };
+
+            if (filterFn(context)) {
+                highlightedNodeIds.add(node.id);
+            }
+        });
+
+        if (highlightedNodeIds.size === 0) {
+            addLog('> filter applied, no matches found');
+        } else {
+            addLog(`> filter applied, nodes found: ${highlightedNodeIds.size}`);
+        }
+
+        const nodeUpdates = allNodes.map((node: VisNode) => ({
+            id: node.id,
+            color: highlightedNodeIds.has(node.id) ? '#FF00FF' : '#444',
+        }));
+        const edgeUpdates = allEdges.map((edge: VisEdge) => ({
+            id: edge.id,
+            color: { color: '#222' },
+        }));
+
+        nodesDataSet.update(nodeUpdates);
+        edgesDataSet.update(edgeUpdates);
+    } catch (error) {
         addLog(
-            `<span class="log-error">error: invalid filter syntax.</span>`
+            `<span class="log-error">error: ${
+                error instanceof Error ? error.message : 'invalid filter syntax'
+            }</span>`,
         );
-        return;
     }
-    const [, metric, operator, value] = match;
-    const numericValue = parseFloat(value);
-    const stringValue = value.trim();
-    const highlightedNodeIds = new Set<string>();
-    const allNodes = nodesDataSet.get();
-    const allEdges = edgesDataSet.get();
-    const inDegreeMap = new Map<string, number>();
-    const outDegreeMap = new Map<string, number>();
-    allNodes.forEach((node: VisNode) => {
-        inDegreeMap.set(node.id, 0);
-        outDegreeMap.set(node.id, 0);
-    });
-    allEdges.forEach((edge: VisEdge) => {
-        outDegreeMap.set(edge.from, (outDegreeMap.get(edge.from) || 0) + 1);
-        inDegreeMap.set(edge.to, (inDegreeMap.get(edge.to) || 0) + 1);
-    });
-    allNodes.forEach((node: VisNode) => {
-        let isMatch = false;
-        switch (metric) {
-            case 'in-degree': {
-                const degree = inDegreeMap.get(node.id) || 0;
-                if (operator === '>' && degree > numericValue) isMatch = true;
-                if (operator === '<' && degree < numericValue) isMatch = true;
-                if (operator === '=' && degree === numericValue) isMatch = true;
-                break;
-            }
-            case 'out-degree': {
-                const degree = outDegreeMap.get(node.id) || 0;
-                if (operator === '>' && degree > numericValue) isMatch = true;
-                if (operator === '<' && degree < numericValue) isMatch = true;
-                if (operator === '=' && degree === numericValue) isMatch = true;
-                break;
-            }
-            case 'degree': {
-                const degree =
-                    (inDegreeMap.get(node.id) || 0) +
-                    (outDegreeMap.get(node.id) || 0);
-                if (operator === '>' && degree > numericValue) isMatch = true;
-                if (operator === '<' && degree < numericValue) isMatch = true;
-                if (operator === '=' && degree === numericValue) isMatch = true;
-                break;
-            }
-            case 'label':
-                if (
-                    operator === 'contains' &&
-                    node.label.toLowerCase().includes(stringValue)
-                ) {
-                    isMatch = true;
-                }
-                if (
-                    operator === '=' &&
-                    node.label.toLowerCase() === stringValue
-                ) {
-                    isMatch = true;
-                }
-                break;
-        }
-        if (isMatch) {
-            highlightedNodeIds.add(node.id);
-        }
-    });
-    if (highlightedNodeIds.size === 0) {
-        addLog('> filter applied, no matches found');
-    } else {
-        addLog(`> filter applied, nodes found: ${highlightedNodeIds.size}`);
-    }
-    const nodeUpdates = allNodes.map((node: VisNode) => ({
-        id: node.id,
-        color: highlightedNodeIds.has(node.id) ? '#FF00FF' : '#444',
-    }));
-    const edgeUpdates = allEdges.map((edge: VisEdge) => ({
-        id: edge.id,
-        color: { color: '#222' },
-    }));
-    nodesDataSet.update(nodeUpdates);
-    edgesDataSet.update(edgeUpdates);
 }
 
 function focusOnNode(nodeId: string): void {
@@ -1799,13 +1771,15 @@ const handleKeydown = (event: KeyboardEvent) => {
 onMounted(async () => {
     addLog('> system is starting...');
 
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+
     if (toastRef.value) {
         toast.setToastRef(toastRef.value);
     }
 
     try {
         addLog('> checking connection to backend...');
-        await api.get('/actuator/health');
+        await apiService.get('/actuator/health');
         addLog('> connection to backend established');
         toast.success('Connection to server established');
 
@@ -1873,6 +1847,7 @@ html {
     from {
         opacity: 0;
     }
+
     to {
         opacity: 1;
     }
@@ -1892,6 +1867,7 @@ html {
         transform: translateY(-20px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -1904,11 +1880,13 @@ html {
     color: var(--primary-color);
     text-shadow: 0 0 10px rgba(123, 225, 65, 0.3);
 }
+
 .logo-container span {
     font-family: Verdana, Geneva, Tahoma, sans-serif;
     font-size: 12px;
     opacity: 0.8;
 }
+
 .logo {
     width: 4rem;
     fill: white;
@@ -1925,6 +1903,7 @@ html {
 .logo-error {
     animation: pulse-error 1s infinite;
 }
+
 .main-panel {
     width: 350px;
     height: 100%;
@@ -1937,31 +1916,38 @@ html {
     overflow-y: auto;
     transition: transform 0.3s ease;
 }
+
 .main-panel::-webkit-scrollbar {
     width: 8px;
 }
+
 .main-panel::-webkit-scrollbar-track {
     background: var(--bg-dark);
     border-radius: 4px;
 }
+
 .main-panel::-webkit-scrollbar-thumb {
     background: var(--border-hover);
     border-radius: 4px;
     transition: background 0.2s ease;
 }
+
 .main-panel::-webkit-scrollbar-thumb:hover {
     background: var(--primary-color);
 }
+
 .main-panel {
     scrollbar-width: thin;
     scrollbar-color: var(--border-hover) var(--bg-dark);
 }
+
 .graph-panel {
     flex-grow: 1;
     height: 100%;
     position: relative;
     background-color: var(--bg-dark);
 }
+
 .graph-panel .watermark {
     position: absolute;
     text-align: right;
@@ -1973,10 +1959,12 @@ html {
     pointer-events: none;
     transition: opacity 0.3s ease;
 }
+
 .graph-panel .watermark img {
     width: 20rem;
     filter: invert(1);
 }
+
 .graph-container {
     width: 100%;
     height: 100%;
@@ -2028,6 +2016,7 @@ button {
     color: #1a1a1a;
     font-weight: bold;
 }
+
 button:hover {
     filter: brightness(1.1);
 }
@@ -2046,6 +2035,7 @@ button:disabled::before {
 .button-active-feedback:active {
     transform: scale(0.98);
 }
+
 .link-button {
     background: none;
     border: none;
@@ -2072,6 +2062,7 @@ button:disabled::before {
     align-items: center;
     padding: 0;
 }
+
 .filter-control label {
     margin-left: 10px;
     cursor: pointer;
@@ -2086,6 +2077,7 @@ button:disabled::before {
     width: auto;
     margin-bottom: 0;
 }
+
 .scan-max-control {
     margin-top: 1rem;
 }
@@ -2098,6 +2090,7 @@ button:disabled::before {
 .scan-max-control label {
     color: #aaa;
 }
+
 .stats {
     border-top: 1px solid var(--border-color);
     margin-top: auto;
@@ -2110,6 +2103,7 @@ button:disabled::before {
         transform: translateY(20px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -2130,11 +2124,13 @@ button:disabled::before {
     float: right;
     font-weight: bold;
 }
+
 .tabs {
     display: flex;
     margin: 20px 0;
     gap: 5px;
 }
+
 .tabs button {
     flex-grow: 1;
     background: var(--bg-input);
@@ -2179,6 +2175,7 @@ button:disabled::before {
     flex-direction: column;
     animation: fadeIn 0.3s ease-out;
 }
+
 .controls-header {
     display: flex;
     justify-content: space-between;
@@ -2188,6 +2185,7 @@ button:disabled::before {
     text-transform: uppercase;
     font-size: 11px;
 }
+
 hr {
     border: 0;
     border-top: 1px solid var(--border-color);
@@ -2195,6 +2193,7 @@ hr {
     margin: 15px 0;
     opacity: 0.5;
 }
+
 .selected-info {
     font-size: 14px;
     text-align: center;
@@ -2206,12 +2205,14 @@ hr {
     color: var(--secondary-color);
     animation: slideDown 0.3s ease-out;
 }
+
 .selected-info a {
     color: var(--secondary-color);
     font-weight: bold;
     text-decoration: none;
     transition: all var(--transition-speed) ease;
 }
+
 .selected-info a:hover {
     text-decoration: underline;
     text-shadow: 0 0 5px rgba(240, 163, 10, 0.5);
@@ -2220,9 +2221,11 @@ hr {
 .log-success {
     color: #7be141;
 }
+
 .log-error {
     color: #ff5555;
 }
+
 .preloader {
     position: fixed;
     top: 0;
@@ -2237,6 +2240,7 @@ hr {
     z-index: 9999;
     transition: opacity 0.5s ease;
 }
+
 .preloader-logo {
     width: 8rem;
     fill: #ffffff;
@@ -2244,10 +2248,12 @@ hr {
     animation: pulse 1s infinite cubic-bezier(0.165, 0.84, 0.44, 1);
     transition: fill 1s;
 }
+
 .preloader-logo-error {
     animation: pulse-error 1s infinite cubic-bezier(0.165, 0.84, 0.44, 1);
     fill: #ff5555;
 }
+
 .preloader p {
     margin-top: 60px;
     color: #e0e0e0;
@@ -2255,16 +2261,19 @@ hr {
     letter-spacing: 2px;
     text-transform: uppercase;
 }
+
 .preloader-error {
     text-align: center;
     padding: 20px;
     max-width: 600px;
     margin-top: 1rem;
 }
+
 .preloader-error h2 {
     color: #ff5555;
     text-transform: uppercase;
 }
+
 .preloader-error p {
     margin-top: 0;
     color: #aaa;
@@ -2273,40 +2282,50 @@ hr {
     text-transform: none;
     line-height: 1.5;
 }
+
 @keyframes pulse {
     0% {
         transform: scale(2);
         opacity: 0.7;
     }
+
     50% {
         transform: scale(2.1);
         opacity: 1;
     }
+
     100% {
         transform: scale(2);
         opacity: 0.7;
     }
 }
+
 @keyframes pulse-error {
     0% {
         fill: #ff5555;
     }
+
     50% {
         fill: #f00a0a;
     }
+
     100% {
         fill: #ff5555;
     }
 }
+
 .stats span.connecting {
     color: #f0a30a;
 }
+
 .stats span.connected {
     color: #7be141;
 }
+
 .stats span.error {
     color: #ff5555;
 }
+
 .hover-tooltip {
     position: absolute;
     background-color: #3a3a3a;
@@ -2320,13 +2339,16 @@ hr {
     pointer-events: none;
     white-space: nowrap;
 }
+
 .hover-tooltip a {
     color: inherit;
     text-decoration: none;
 }
+
 .hover-tooltip a:hover {
     text-decoration: underline;
 }
+
 .context-menu {
     position: absolute;
     background-color: #2c2c2c;
@@ -2342,16 +2364,20 @@ hr {
     backdrop-filter: blur(10px);
     background-color: rgba(44, 44, 44, 0.95);
 }
+
 .context-menu-anim-enter-active,
 .context-menu-anim-leave-active {
-    transition: transform var(--transition-speed) ease,
+    transition:
+        transform var(--transition-speed) ease,
         opacity var(--transition-speed) ease;
 }
+
 .context-menu-anim-enter-from,
 .context-menu-anim-leave-to {
     opacity: 0;
     transform: scale(0.95);
 }
+
 .context-menu-header {
     padding: 8px 12px;
     font-weight: bold;
@@ -2369,12 +2395,14 @@ hr {
     background-color: var(--border-color);
     margin: 5px 0;
 }
+
 .context-menu-section {
     padding: 8px 12px;
     font-size: 11px;
     text-transform: uppercase;
     color: #999;
 }
+
 .context-menu-item {
     padding: 8px 12px;
     cursor: pointer;
@@ -2411,20 +2439,25 @@ hr {
     color: var(--primary-color);
     padding-left: 16px;
 }
+
 .context-menu-item.danger:hover {
     background-color: rgba(255, 85, 85, 0.15);
     color: var(--danger-color);
 }
+
 .context-menu-list {
     max-height: 200px;
     overflow-y: auto;
 }
+
 .context-menu-list::-webkit-scrollbar {
     width: 5px;
 }
+
 .context-menu-list::-webkit-scrollbar-track {
     background: #2c2c2c;
 }
+
 .context-menu-list::-webkit-scrollbar-thumb {
     background: var(--border-hover);
     border-radius: 3px;
@@ -2440,11 +2473,13 @@ hr {
     cursor: pointer;
     transition: all var(--transition-speed) ease;
 }
+
 .context-menu-item-small:hover {
     background-color: rgba(123, 225, 65, 0.1);
     color: var(--primary-color);
     padding-left: 20px;
 }
+
 .project-selector {
     display: flex;
     gap: 10px;
@@ -2453,6 +2488,7 @@ hr {
     position: relative;
     animation: slideDown 0.4s ease-out;
 }
+
 .project-selector select {
     position: relative;
     z-index: 100;
@@ -2467,12 +2503,14 @@ hr {
     display: flex;
     flex-shrink: 0;
 }
+
 .new-project input {
     width: 150px;
     margin-bottom: 0;
     border-radius: 4px 0 0 4px;
     border-right: none;
 }
+
 .new-project button {
     width: 40px;
     margin-bottom: 0;

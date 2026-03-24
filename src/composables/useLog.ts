@@ -1,4 +1,3 @@
-// src/composables/useLog.ts
 import { ref } from 'vue';
 
 export function useLog() {
