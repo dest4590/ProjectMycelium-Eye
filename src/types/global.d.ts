@@ -3,6 +3,7 @@ export interface NodeDataRaw {
     nickname?: string;
     scanned: boolean;
     isHidden?: boolean;
+    lastScanned?: string | null;
 }
 
 export interface EdgeDataRaw {
@@ -28,6 +29,7 @@ export interface VisNode {
     isHidden?: boolean;
     size?: number;
     shadow?: boolean | { enabled?: boolean; color?: string; size?: number };
+    lastScanned?: string | null;
 }
 
 export interface VisEdge {
@@ -70,4 +72,5 @@ export interface HoverTooltipState {
     nodeId: string | null;
     isScanned: boolean;
     label: string | null;
+    lastScanned?: string | null;
 }

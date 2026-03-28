@@ -408,24 +408,25 @@ async function fetchProjects(): Promise<void> {
     }
 }
 
-async function createProject(): Promise<void> {
-    if (!newProjectName.value) {
+async function createProject(projectName?: string): Promise<void> {
+    const name = projectName ?? newProjectName.value;
+    if (!name) {
         addLog('> project name cannot be empty');
         toast.warning('Enter project name');
         return;
     }
-    if (projects.value.includes(newProjectName.value)) {
+    if (projects.value.includes(name)) {
         addLog('> project already exists');
         toast.warning('Project with this name already exists');
         return;
     }
     try {
-        await apiService.post(`/projects?name=${newProjectName.value}`);
-        projects.value.push(newProjectName.value);
-        activeProject.value = newProjectName.value;
+        await apiService.post(`/projects?name=${name}`);
+        projects.value.push(name);
+        activeProject.value = name;
         addLog(`> project created and selected: "${activeProject.value}"`);
-        toast.success(`Project "${newProjectName.value}" created`);
-        newProjectName.value = '';
+        toast.success(`Project "${name}" created`);
+        if (!projectName) newProjectName.value = '';
     } catch (error: any) {
         addLog(
             `<span class="log-error">error creating project: ${error.message}</span>`,
@@ -509,6 +510,7 @@ function formatNode(n: NodeDataRaw): VisNode {
         color: n.scanned ? '#7BE141' : '#F0A30A',
         scanned: n.scanned,
         isHidden: n.isHidden,
+        lastScanned: n.lastScanned ?? null,
     };
 }
 
@@ -578,6 +580,7 @@ const stompClient = new Client({
                     username: update.username,
                     nickname: update.nickname,
                     scanned: update.isScanned,
+                    lastScanned: update.lastScanned ?? null,
                 });
                 nodesDataSet.update(nodeData);
                 allNodesBackup.update(nodeData);
@@ -585,38 +588,39 @@ const stompClient = new Client({
                 const srcNode = formatNode({
                     username: update.source,
                     scanned: false,
+                    lastScanned: null,
                 });
                 const tgtNode = formatNode({
                     username: update.target,
                     scanned: false,
+                    lastScanned: null,
                 });
-                try {
-                    nodesDataSet.update(srcNode);
-                    allNodesBackup.update(srcNode);
-                } catch (e) {
-                    try {
-                        nodesDataSet.add(srcNode);
-                    } catch (ee) {}
-                }
-                try {
-                    nodesDataSet.update(tgtNode);
-                    allNodesBackup.update(tgtNode);
-                } catch (e) {
-                    try {
-                        nodesDataSet.add(tgtNode);
-                    } catch (ee) {}
-                }
+
+                const upsertNode = (node: VisNode) => {
+                    if (nodesDataSet.get(node.id)) {
+                        nodesDataSet.update(node);
+                    } else {
+                        nodesDataSet.add(node);
+                    }
+                    if (allNodesBackup.get(node.id)) {
+                        allNodesBackup.update(node);
+                    } else {
+                        allNodesBackup.add(node);
+                    }
+                };
+
+                upsertNode(srcNode);
+                upsertNode(tgtNode);
+
                 const edgeObj = formatEdge({
                     source: update.source,
                     target: update.target,
                     active: true,
                 });
-                try {
+                if (edgesDataSet.get(edgeObj.id)) {
                     edgesDataSet.update(edgeObj);
-                } catch (e) {
-                    try {
-                        edgesDataSet.add(edgeObj);
-                    } catch (ee) {}
+                } else {
+                    edgesDataSet.add(edgeObj);
                 }
             } else if (update.type === 'NODE_DELETION') {
                 nodesDataSet.remove(update.username);
@@ -954,6 +958,8 @@ function setupNetworkEvents(): void {
                         hoverTooltip.nodeId = nodeData.id;
                         hoverTooltip.label = nodeData.label;
                         hoverTooltip.isScanned = nodeData.scanned;
+                        hoverTooltip.lastScanned =
+                            (nodeData as any).lastScanned ?? null;
                         hoverTooltip.x = params.pointer.DOM.x;
                         hoverTooltip.y = params.pointer.DOM.y;
                         hoverTooltip.visible = true;
@@ -1300,12 +1306,14 @@ async function expandAllNodes(): Promise<void> {
         );
         nodesDataSet.clear();
         edgesDataSet.clear();
+        allNodesBackup.clear();
         expandedNodes.value.clear();
         const allNodes = allNodesRaw
             .filter((n: NodeDataRaw) => !n.isHidden)
             .map(formatNode);
         const allEdges = allEdgesRaw.map(formatEdge);
         nodesDataSet.add(allNodes);
+        allNodesBackup.add(allNodes);
         edgesDataSet.add(allEdges);
         allNodes.forEach((node: VisNode) => expandedNodes.value.add(node.id));
         updateFilteredNodes();
@@ -1602,7 +1610,7 @@ onMounted(async () => {
 
     try {
         addLog('> checking connection to backend...');
-        await apiService.get('/actuator/health');
+        await apiService.get('/bro');
         addLog('> connection to backend established');
         toast.success('Connection to server established');
 

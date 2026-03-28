@@ -120,7 +120,6 @@ select:focus-visible {
     margin: 0;
     margin-bottom: 5px;
     color: var(--primary-color);
-    text-shadow: 0 0 10px rgba(123, 225, 65, 0.3);
 }
 
 .logo-container span {
@@ -544,7 +543,8 @@ hr {
 
 .context-menu-anim-enter-active,
 .context-menu-anim-leave-active {
-    transition: transform var(--transition-speed) ease,
+    transition:
+        transform var(--transition-speed) ease,
         opacity var(--transition-speed) ease;
 }
 

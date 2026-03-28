@@ -142,6 +142,9 @@
                         ({{ hoverTooltip.isScanned ? 'scanned' : 'unscanned' }})
                     </span>
                 </a>
+                <div v-if="hoverTooltip.lastScanned" style="font-size: 12px; margin-top: 4px; opacity: 0.85">
+                    Last scanned: {{ hoverTooltip.lastScanned }}
+                </div>
             </div>
         </transition>
     </div>
