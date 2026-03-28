@@ -208,7 +208,7 @@ import type {
     HoverTooltipState,
 } from '@/types/global.d';
 
-const { logs, addLog } = useLog();
+const { logs, addLog, addErrorLog } = useLog();
 const toast = useToast();
 
 const nodesDataSet = markRaw(new DataSet<VisNode, 'id'>());
@@ -402,9 +402,7 @@ async function fetchProjects(): Promise<void> {
             addLog('> no projects yet. create the first one');
         }
     } catch (error: any) {
-        addLog(
-            `<span class="log-error">failed to load projects: ${error.message}</span>`,
-        );
+        addErrorLog(error);
     }
 }
 
@@ -428,9 +426,7 @@ async function createProject(projectName?: string): Promise<void> {
         toast.success(`Project "${name}" created`);
         if (!projectName) newProjectName.value = '';
     } catch (error: any) {
-        addLog(
-            `<span class="log-error">error creating project: ${error.message}</span>`,
-        );
+        addErrorLog(error);
     }
 }
 
@@ -461,9 +457,7 @@ async function deleteProject(): Promise<void> {
         addLog(`> project "${projectToDelete}" successfully deleted`);
         toast.success(`Project "${projectToDelete}" deleted`);
     } catch (error: any) {
-        addLog(
-            `<span class="log-error">error deleting project: ${error.message}</span>`,
-        );
+        addErrorLog(error);
     }
 }
 
@@ -478,9 +472,7 @@ async function fetchLimits(): Promise<void> {
         maxFollowersLimit.value = maxFollowers ?? null;
         maxFollowingLimit.value = maxFollowing ?? null;
     } catch (error: any) {
-        addLog(
-            `<span class="log-error">failed to load limits: ${error.message}</span>`,
-        );
+        addErrorLog(error);
     }
 }
 
@@ -493,9 +485,7 @@ async function setLimit(type: string, value: number) {
         await apiService.post(`/settings/limits/${type}?value=${value}`);
         addLog(`> set limit ${type}: ${value}`);
     } catch (error: any) {
-        addLog(
-            `<span class="log-error">error setting limit ${type}: ${error.message}</span>`,
-        );
+        addErrorLog(error);
     }
 }
 
@@ -655,9 +645,7 @@ const stompClient = new Client({
     },
     onStompError: (error) => {
         wsStatus.value = 'error';
-        addLog(
-            `<span class="log-error">WS error: ${error.headers.message}</span>`,
-        );
+        addErrorLog(new Error(`WS error: ${error.headers.message}`));
     },
     onWebSocketError: (error) => {
         wsStatus.value = 'error';
@@ -668,7 +656,7 @@ async function initiateScan(
     type: 'followers' | 'following' | 'force' | 'default',
 ): Promise<void> {
     if (!activeProject.value || !startUser.value) {
-        addLog('<span class="log-error">select project and enter user</span>');
+        addErrorLog(new Error('select project and enter user'));
         toast.warning('Select project and enter username');
         return;
     }
@@ -741,9 +729,9 @@ async function initGraph(): Promise<void> {
     isLoading.value = true;
     graphInitInProgress.value = true;
     addLog(`> loading graph for project: "${activeProject.value}"`);
+    allNodesBackup.clear();
     nodesDataSet.clear();
     edgesDataSet.clear();
-    allNodesBackup.clear();
     expandedNodes.value.clear();
 
     setGraphContainerRef();
@@ -902,8 +890,8 @@ async function initGraph(): Promise<void> {
         updateFilteredNodes();
         addLog(`> initial graph for "${activeProject.value}" loaded`);
     } catch (error: any) {
-        addLog(
-            `<span class="log-error">error loading graph: ${error.message}</span>`,
+        addErrorLog(
+            error instanceof Error ? error : new Error('error loading graph'),
         );
     } finally {
         isLoading.value = false;
@@ -1064,8 +1052,8 @@ async function expandNode(username: string): Promise<void> {
             `> node ${username} expanded. Added: ${nodesToAdd.length} nodes, ${edgesToAdd.length} edges.`,
         );
     } catch (err: any) {
-        addLog(
-            `<span class="log-error">error expanding node: ${err.message}</span>`,
+        addErrorLog(
+            err instanceof Error ? err : new Error('error expanding node'),
         );
     }
 }
@@ -1081,10 +1069,10 @@ async function deleteNode(username: string): Promise<void> {
     addLog(`> deleting node ${username}...`);
     try {
         await apiService.delete(`/graph/${username}`);
-        addLog(`> node ${username} successfully deleted`);
+        addLog(`> node ${username} and its connections successfully deleted`);
     } catch (err: any) {
-        addLog(
-            `<span class="log-error">error deleting node: ${err.message}</span>`,
+        addErrorLog(
+            err instanceof Error ? err : new Error('error deleting node'),
         );
     }
 }
@@ -1304,9 +1292,9 @@ async function expandAllNodes(): Promise<void> {
         addLog(
             `> full graph received. nodes: ${allNodesRaw.length}, edges: ${allEdgesRaw.length}`,
         );
+        allNodesBackup.clear();
         nodesDataSet.clear();
         edgesDataSet.clear();
-        allNodesBackup.clear();
         expandedNodes.value.clear();
         const allNodes = allNodesRaw
             .filter((n: NodeDataRaw) => !n.isHidden)
@@ -1319,9 +1307,7 @@ async function expandAllNodes(): Promise<void> {
         updateFilteredNodes();
         addLog('> graph fully updated');
     } catch (err: any) {
-        addLog(
-            `<span class="log-error">error loading full graph: ${err.message}</span>`,
-        );
+        addErrorLog(err);
     } finally {
         isLoading.value = false;
     }
@@ -1338,8 +1324,10 @@ function markAsNotScanned(nodeId: string): void {
         apiService.patch(`/user/${nodeId}/scanned?scanned=false`);
         addLog(`> node ${nodeId} marked as unscanned`);
     } catch (err: any) {
-        addLog(
-            `<span class="log-error">error marking node as unscanned: ${err.message}</span>`,
+        addErrorLog(
+            err instanceof Error
+                ? err
+                : new Error('error marking node as unscanned'),
         );
     }
 }
@@ -1363,8 +1351,10 @@ async function toggleHideNode(nodeId: string): Promise<void> {
             `> node ${nodeId} is now ${newHiddenStatus ? 'hidden' : 'visible'}`,
         );
     } catch (err: any) {
-        addLog(
-            `<span class="log-error">error toggling hide status for node: ${err.message}</span>`,
+        addErrorLog(
+            err instanceof Error
+                ? err
+                : new Error('error toggling hide status for node'),
         );
     }
 }
@@ -1434,10 +1424,8 @@ function applyFilter(): void {
         nodesDataSet.update(nodeUpdates);
         edgesDataSet.update(edgeUpdates);
     } catch (error) {
-        addLog(
-            `<span class="log-error">error: ${
-                error instanceof Error ? error.message : 'invalid filter syntax'
-            }</span>`,
+        addErrorLog(
+            error instanceof Error ? error : new Error('invalid filter syntax'),
         );
     }
 }
@@ -1630,7 +1618,7 @@ onMounted(async () => {
         }
     } catch (error: any) {
         const errorMessage = `failed to connect to backend. is it running? (${error.message})`;
-        addLog(`<span class="log-error">${errorMessage}</span>`);
+        addErrorLog(new Error(errorMessage));
         startupError.value = errorMessage;
         toast.error('Failed to connect to server');
     }
