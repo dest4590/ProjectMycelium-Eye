@@ -82,7 +82,6 @@ defineExpose({ addToast, removeToast });
     background-color: #2c2c2c;
     border-left: 4px solid;
     border-radius: 4px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     cursor: pointer;
     pointer-events: all;
     transition: all 0.3s ease;
@@ -90,7 +89,6 @@ defineExpose({ addToast, removeToast });
 
 .toast:hover {
     transform: translateX(-5px);
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
 
 .toast-success {

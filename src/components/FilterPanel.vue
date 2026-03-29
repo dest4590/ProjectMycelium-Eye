@@ -236,7 +236,6 @@ const acceptCurrentSuggestion = () => {
     border: 1px solid #555;
     border-radius: 5px;
     z-index: 10001;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
     color: #e0e0e0;
     padding: 5px 0;
     transform-origin: top left;

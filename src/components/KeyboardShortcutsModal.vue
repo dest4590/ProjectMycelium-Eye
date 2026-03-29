@@ -117,7 +117,6 @@ defineExpose({ open, close });
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
 
 .modal-header {
@@ -214,7 +213,6 @@ kbd {
     background: linear-gradient(180deg, #444 0%, #333 100%);
     border: 1px solid #555;
     border-radius: 4px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
     color: #e0e0e0;
     font-family: 'Consolas', 'Menlo', monospace;
     font-size: 13px;

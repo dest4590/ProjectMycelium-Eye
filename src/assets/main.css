@@ -137,8 +137,8 @@ select:focus-visible {
 }
 
 .logo:hover {
-    transform: scale(1.05);
-    filter: drop-shadow(0 0 8px rgba(123, 225, 65, 0.5));
+    transform: scale(1.2);
+    fill: #00ff15;
 }
 
 .logo-error {
@@ -214,7 +214,6 @@ select {
 input:focus,
 select:focus {
     border-color: var(--primary-color);
-    box-shadow: 0 0 8px rgba(123, 225, 65, 0.3);
     outline: none;
 }
 
@@ -252,7 +251,6 @@ button:hover {
 
 .link-button:hover {
     color: #a0f171;
-    text-shadow: 0 0 5px rgba(123, 225, 65, 0.5);
 }
 
 .filter-control {
@@ -359,7 +357,6 @@ button:hover {
 .tabs button.active {
     background: var(--border-hover);
     color: #fff;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 .tabs button:hover:not(.active) {
@@ -412,7 +409,6 @@ hr {
 
 .selected-info a:hover {
     text-decoration: underline;
-    text-shadow: 0 0 5px rgba(240, 163, 10, 0.5);
 }
 
 .log-success {
@@ -519,7 +515,6 @@ hr {
     border-radius: 4px;
     padding: 6px 10px;
     z-index: 9999;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     color: #e0e0e0;
     font-size: 12px;
     pointer-events: none;
@@ -533,7 +528,6 @@ hr {
     border-radius: 5px;
     min-width: 200px;
     z-index: 10000;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
     color: #e0e0e0;
     font-size: 14px;
     padding: 5px 0;
