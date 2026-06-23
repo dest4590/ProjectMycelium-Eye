@@ -40,24 +40,4 @@ watch(
     flex-direction: column-reverse;
     overflow-y: auto;
 }
-
-.logs::-webkit-scrollbar {
-    width: 8px;
-}
-.logs::-webkit-scrollbar-track {
-    background: #1a1a1a;
-    border-radius: 4px;
-}
-.logs::-webkit-scrollbar-thumb {
-    background: #555;
-    border-radius: 4px;
-}
-.logs::-webkit-scrollbar-thumb:hover {
-    background: #7be141;
-}
-
-.logs {
-    scrollbar-width: thin;
-    scrollbar-color: #555 #1a1a1a;
-}
 </style>

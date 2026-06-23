@@ -69,6 +69,11 @@ input:focus {
     background: var(--primary-color);
 }
 
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-hover) var(--bg-dark);
+}
+
 button:focus-visible,
 input:focus-visible,
 select:focus-visible {

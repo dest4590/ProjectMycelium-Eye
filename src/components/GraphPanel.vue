@@ -15,7 +15,7 @@
             @toggle-physics="$emit('togglePhysics')"
             @reset-view="$emit('resetGraphView')"
         />
-        <div class="watermark"><img src="@/assets/Eye_of_Ra.png" /></div>
+        <div class="watermark"><img src="/assets/eye_of_ra.svg" /></div>
         <div ref="graphContainer" class="graph-container"></div>
 
         <transition name="context-menu-anim">

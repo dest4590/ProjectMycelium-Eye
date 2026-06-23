@@ -160,24 +160,6 @@ defineExpose({ open, close });
     overflow-y: auto;
 }
 
-.modal-body::-webkit-scrollbar {
-    width: 8px;
-}
-
-.modal-body::-webkit-scrollbar-track {
-    background: #1a1a1a;
-    border-radius: 4px;
-}
-
-.modal-body::-webkit-scrollbar-thumb {
-    background: #555;
-    border-radius: 4px;
-}
-
-.modal-body::-webkit-scrollbar-thumb:hover {
-    background: #7be141;
-}
-
 .shortcuts-section {
     margin-bottom: 30px;
 }

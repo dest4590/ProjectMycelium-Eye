@@ -36,6 +36,13 @@
                 show full graph
                 <span style="color: red">(!!! dangerous !!!)</span>
             </button>
+            <button
+                @click="$emit('dumpScheme')"
+                class="button-active-feedback"
+                title="prints graph structure to dev console"
+            >
+                print node scheme
+            </button>
         </div>
     </div>
 </template>
@@ -56,7 +63,8 @@ const emit = defineEmits([
     'update:maxFollowersLimit',
     'update:maxFollowingLimit',
     'setLimit',
-    'expandAllNodes'
+    'expandAllNodes',
+    'dumpScheme',
 ]);
 
 const localHideSingleConnections = computed({ get: () => props.hideSingleConnections, set: (v) => emit('update:hideSingleConnections', v) });

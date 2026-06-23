@@ -110,6 +110,7 @@
                 :activeProject="activeProject"
                 @setLimit="setLimit"
                 @expandAllNodes="expandAllNodes"
+                @dumpScheme="dumpGraphScheme"
             />
 
             <StatsPanel
@@ -291,31 +292,6 @@ const toastRef = ref<InstanceType<typeof ToastNotification> | null>(null);
 const keyboardShortcutsModalRef = ref<InstanceType<
     typeof KeyboardShortcutsModal
 > | null>(null);
-
-const contextMenuRef = ref<HTMLElement | null>(null);
-
-const handleContextMenuClickOutside = (event: MouseEvent) => {
-    if (!contextMenu.visible) return;
-    const target = event.target as Node;
-    const menuEl = contextMenuRef.value;
-    if (menuEl && menuEl.contains(target)) return;
-    contextMenu.visible = false;
-};
-
-watch(
-    () => contextMenu.visible,
-    (newVal: boolean) => {
-        if (newVal) {
-            window.addEventListener('mousedown', handleContextMenuClickOutside);
-        } else {
-            window.removeEventListener(
-                'mousedown',
-                handleContextMenuClickOutside,
-            );
-        }
-    },
-    { immediate: true },
-);
 
 const isScanningLimitReached = computed<boolean>(
     () => Object.keys(tasks || {}).length >= MAX_CONCURRENT_SCANS,
@@ -515,6 +491,16 @@ function formatEdge(e: EdgeDataRaw): VisEdge {
     };
 }
 
+let filterDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function debouncedUpdateFilteredNodes(): void {
+    if (filterDebounceTimer) clearTimeout(filterDebounceTimer);
+    filterDebounceTimer = setTimeout(() => {
+        updateFilteredNodes();
+        filterDebounceTimer = null;
+    }, 50);
+}
+
 function updateFilteredNodes(): void {
     if (!network.value) return;
 
@@ -526,14 +512,25 @@ function updateFilteredNodes(): void {
             nodesDataSet.add(nodesToAdd);
         }
     } else {
-        const edgeCounts = new Map<string, number>();
+        const neighborCounts = new Map<string, Map<string, number>>();
         edgesDataSet.forEach((edge: VisEdge) => {
-            edgeCounts.set(edge.from, (edgeCounts.get(edge.from) || 0) + 1);
-            edgeCounts.set(edge.to, (edgeCounts.get(edge.to) || 0) + 1);
+            if (!neighborCounts.has(edge.from)) neighborCounts.set(edge.from, new Map());
+            if (!neighborCounts.has(edge.to)) neighborCounts.set(edge.to, new Map());
+            const fromMap = neighborCounts.get(edge.from)!;
+            fromMap.set(edge.to, (fromMap.get(edge.to) || 0) + 1);
+            const toMap = neighborCounts.get(edge.to)!;
+            toMap.set(edge.from, (toMap.get(edge.from) || 0) + 1);
         });
 
+        const uniqueCounts = new Map<string, number>();
+        for (const [node, neighbors] of neighborCounts) {
+            uniqueCounts.set(node, neighbors.size);
+        }
+
         const nodesToRemove = nodesDataSet.get({
-            filter: (node: VisNode) => (edgeCounts.get(node.id) || 0) < 2,
+            filter: (node: VisNode) => {
+                return (uniqueCounts.get(node.id) || 0) < 2;
+            },
         });
 
         if (nodesToRemove.length > 0) {
@@ -543,15 +540,43 @@ function updateFilteredNodes(): void {
     stats.nodesOnGraph = nodesDataSet.length;
 }
 
+function dumpGraphScheme(): void {
+    const nodes = nodesDataSet.get({ returnType: 'Array' }) as VisNode[];
+    const edges = edgesDataSet.get({ returnType: 'Array' }) as VisEdge[];
+    const lines: string[] = [];
+    lines.push(`=== GRAPH SCHEME (${nodes.length} nodes, ${edges.length} edges) ===`);
+    for (const edge of edges) {
+        lines.push(`  ${edge.from} -> ${edge.to}`);
+    }
+    lines.push(`=== HANGING CHECK ===`);
+    const neighborCounts = new Map<string, Map<string, number>>();
+    edges.forEach((edge: VisEdge) => {
+        if (!neighborCounts.has(edge.from)) neighborCounts.set(edge.from, new Map());
+        if (!neighborCounts.has(edge.to)) neighborCounts.set(edge.to, new Map());
+        const fromMap = neighborCounts.get(edge.from)!;
+        fromMap.set(edge.to, (fromMap.get(edge.to) || 0) + 1);
+        const toMap = neighborCounts.get(edge.to)!;
+        toMap.set(edge.from, (toMap.get(edge.from) || 0) + 1);
+    });
+    const uniqueCounts = new Map<string, number>();
+    for (const [node, nbrs] of neighborCounts) {
+        let total = 0;
+        for (const c of nbrs.values()) total += c;
+        uniqueCounts.set(node, nbrs.size);
+        lines.push(`  ${node}: total=${total}, unique=${nbrs.size}, neighbors=[${Array.from(nbrs.keys()).join(', ')}]`);
+    }
+    console.log(lines.join('\n'));
+}
+
 watch(hideSingleConnections, updateFilteredNodes);
 
 nodesDataSet.on('*', () => {
     stats.nodes = allNodesBackup.length;
-    updateFilteredNodes();
+    debouncedUpdateFilteredNodes();
 });
 edgesDataSet.on('*', () => {
     stats.edges = edgesDataSet.length;
-    updateFilteredNodes();
+    debouncedUpdateFilteredNodes();
 });
 
 const stompClient = new Client({
@@ -560,11 +585,21 @@ const stompClient = new Client({
         wsStatus.value = 'connected';
         addLog('> WS: connection established');
         stompClient.subscribe('/topic/logs', (message) => {
-            const update = JSON.parse(message.body);
-            addLog(`> [${update.taskId.slice(0, 8)}] ${update.message}`);
+            try {
+                const update = JSON.parse(message.body);
+                addLog(`> [${update.taskId.slice(0, 8)}] ${update.message}`);
+            } catch (e) {
+                addErrorLog(e instanceof Error ? e : new Error('Failed to parse log message'));
+            }
         });
         stompClient.subscribe('/topic/updates', (message) => {
-            const update = JSON.parse(message.body);
+            let update: any;
+            try {
+                update = JSON.parse(message.body);
+            } catch (e) {
+                addErrorLog(e instanceof Error ? e : new Error('Failed to parse update message'));
+                return;
+            }
             if (update.type === 'USER_NODE_UPDATE') {
                 const nodeData = formatNode({
                     username: update.username,
@@ -572,8 +607,15 @@ const stompClient = new Client({
                     scanned: update.isScanned,
                     lastScanned: update.lastScanned ?? null,
                 });
-                nodesDataSet.update(nodeData);
-                allNodesBackup.update(nodeData);
+                const upsertNodeUpdate = (node: VisNode) => {
+                    if (nodesDataSet.get(node.id)) {
+                        nodesDataSet.update(node);
+                    } else {
+                        nodesDataSet.add(node);
+                    }
+                    allNodesBackup.update(node);
+                };
+                upsertNodeUpdate(nodeData);
             } else if (update.type === 'NEW_EDGE') {
                 const srcNode = formatNode({
                     username: update.source,
@@ -623,7 +665,13 @@ const stompClient = new Client({
             }
         });
         stompClient.subscribe('/topic/status', (message) => {
-            const update = JSON.parse(message.body);
+            let update: any;
+            try {
+                update = JSON.parse(message.body);
+            } catch (e) {
+                addErrorLog(e instanceof Error ? e : new Error('Failed to parse status message'));
+                return;
+            }
             const task = tasks[update.taskId];
             if (!task) return;
 
@@ -1081,21 +1129,26 @@ function getFullNodeList(): VisNode[] {
     return nodesDataSet.get({ returnType: 'Array' });
 }
 
+let suggestionsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
 function updateSuggestions(
     query: string | number,
     suggestionsRef: Ref<string[]>,
 ): void {
-    const queryString = String(query);
-    if (queryString.length > 0) {
-        suggestionsRef.value = getFullNodeList()
-            .map((n: VisNode) => n.id)
-            .filter((id: string) =>
-                id.toLowerCase().includes(queryString.toLowerCase()),
-            )
-            .sort((a, b) => a.localeCompare(b));
-    } else {
-        suggestionsRef.value = [];
-    }
+    if (suggestionsDebounceTimer) clearTimeout(suggestionsDebounceTimer);
+    suggestionsDebounceTimer = setTimeout(() => {
+        const queryString = String(query);
+        if (queryString.length > 0) {
+            suggestionsRef.value = getFullNodeList()
+                .map((n: VisNode) => n.id)
+                .filter((id: string) =>
+                    id.toLowerCase().includes(queryString.toLowerCase()),
+                )
+                .sort((a, b) => a.localeCompare(b));
+        } else {
+            suggestionsRef.value = [];
+        }
+    }, 150);
 }
 
 const updateSearchSuggestions = (value: string | number) =>
@@ -1598,7 +1651,7 @@ onMounted(async () => {
 
     try {
         addLog('> checking connection to backend...');
-        await apiService.get('/bro');
+        await apiService.get('/health');
         addLog('> connection to backend established');
         toast.success('Connection to server established');
 
@@ -1627,7 +1680,6 @@ onMounted(async () => {
 onUnmounted(() => {
     if (stompClient.active) stompClient.deactivate();
     window.removeEventListener('keydown', handleKeydown);
-    window.removeEventListener('mousedown', handleContextMenuClickOutside);
 });
 </script>
 
