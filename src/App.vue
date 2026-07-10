@@ -580,7 +580,7 @@ edgesDataSet.on('*', () => {
 });
 
 const stompClient = new Client({
-    brokerURL: 'ws://localhost:8080/ws-mycelium',
+    brokerURL: import.meta.env.VITE_WS_URL || 'ws://localhost:8080/ws-mycelium',
     onConnect: () => {
         wsStatus.value = 'connected';
         addLog('> WS: connection established');
